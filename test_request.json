@@ -1,0 +1,1 @@
+{"type":"koinos::types::block_store::get_blocks_by_id_req","value":{"block_id":[{"Id":18,"Digest":"47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="}],"return_block_blob":false,"return_receipt_blob":false}}

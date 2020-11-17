@@ -1,0 +1,3 @@
+[submodule "koinos-types"]
+	path = koinos-types
+	url = git@github.com:koinos/koinos-types.git

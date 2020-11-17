@@ -152,6 +152,13 @@ func TestAddBlocks( t *testing.T ) {
          add_req.BlockToAdd.BlockBlob = GetBlockBody(tree[i][j])
          add_req.BlockToAdd.BlockReceiptBlob = VariableBlob( make([]byte, 0) )
          generic_req := BlockStoreReq{ add_req }
+
+         json, err := generic_req.MarshalJSON()
+         if err != nil {
+            t.Error("Could not marshal JSON", err)
+         }
+         fmt.Printf("%s\n", string(json))
+
          result, err := handler.HandleRequest( &generic_req )
          if err != nil {
             t.Error("Got error adding block", err)

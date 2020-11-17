@@ -3,7 +3,6 @@ package bstore
 
 import "crypto/sha256"
 import "encoding/binary"
-import "encoding/hex"
 import "fmt"
 import "testing"
 
@@ -133,24 +132,20 @@ func TestAddBlocks( t *testing.T ) {
       {                                                          112, 613, 614                              },
    }
 
-   /*
-   tree := [][]uint64 {
-      {0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110} }
-   */
-
    handler := RequestHandler{ NewMapBackend() }
    for i := 0; i < len(tree); i++ {
       for j := 1; j < len(tree[i]); j++ {
          block_id := GetBlockId(tree[i][j])
          parent_id := GetBlockId(tree[i][j-1])
 
-         fmt.Printf("Block %d has ID %v\n", tree[i][j], hex.EncodeToString( block_id.Digest ) );
+         // fmt.Printf("Block %d has ID %v\n", tree[i][j], hex.EncodeToString( block_id.Digest ) );
          add_req := AddBlockReq{}
          add_req.BlockToAdd.BlockId = block_id
          add_req.PreviousBlockId = parent_id
          add_req.BlockToAdd.BlockHeight = BlockHeightType( tree[i][j] % 100 )
          add_req.BlockToAdd.BlockBlob = GetBlockBody(tree[i][j])
          add_req.BlockToAdd.BlockReceiptBlob = VariableBlob( make([]byte, 0) )
+
          generic_req := BlockStoreReq{ add_req }
 
          json, err := generic_req.MarshalJSON()
@@ -168,20 +163,4 @@ func TestAddBlocks( t *testing.T ) {
          }
       }
    }
-
-/*
-type BlockItem struct {
-    BlockId Multihash `json:"block_id"`
-    BlockHeight BlockHeightType `json:"block_height"`
-    BlockBlob VariableBlob `json:"block_blob"`
-    BlockReceiptBlob VariableBlob `json:"block_receipt_blob"`
-}
-
-         
-
-type AddBlockReq struct {
-    BlockToAdd BlockItem `json:"block_to_add"`
-    PreviousBlockId Multihash `json:"previous_block_id"`
-      }
-*/
 }

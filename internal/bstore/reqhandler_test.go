@@ -129,6 +129,8 @@ func TestAddBlocks(t *testing.T) {
 		{106, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419},
 		{109, 510, 511},
 		{112, 613, 614},
+		{411, 712, 713, 714, 715, 716, 717, 718},
+		{714, 815, 816, 817, 818, 819},
 	}
 
 	handler := RequestHandler{NewMapBackend()}
@@ -155,11 +157,94 @@ func TestAddBlocks(t *testing.T) {
 
 			result, err := handler.HandleRequest(&generic_req)
 			if err != nil {
-				t.Error("Got error adding block", err)
+				t.Error("Got error adding block:", err)
 			}
 			if result == nil {
 				t.Error("Got nil result")
 			}
 		}
 	}
+
+	// Item {105, 120, 4, 104} means for blocks 105-120, the ancestor at height 4 is block 104.
+	ancestor_cases := [][]uint64{
+		{102, 120, 1, 101}, {103, 120, 2, 102}, {104, 120, 3, 103}, {105, 120, 4, 104},
+		{106, 120, 5, 105}, {107, 120, 6, 106}, {108, 120, 7, 107}, {109, 120, 8, 108}, {110, 120, 9, 109},
+		{111, 120, 10, 110}, {112, 120, 11, 111}, {113, 120, 12, 112}, {114, 120, 13, 113}, {115, 120, 14, 114},
+		{116, 120, 15, 115}, {117, 120, 16, 116}, {118, 120, 17, 117}, {119, 120, 18, 118}, {120, 120, 19, 119},
+
+		{204, 211, 1, 101}, {204, 211, 2, 102}, {204, 211, 3, 103}, {205, 211, 4, 204},
+		{206, 211, 5, 205}, {207, 211, 6, 206}, {208, 211, 7, 207}, {209, 211, 8, 208}, {210, 211, 9, 209},
+		{211, 211, 10, 210},
+
+		{304, 307, 1, 101}, {304, 307, 2, 102}, {304, 307, 3, 103}, {305, 307, 4, 304},
+		{306, 307, 5, 305}, {307, 307, 6, 306},
+
+		{407, 419, 1, 101}, {407, 419, 2, 102}, {407, 419, 3, 103}, {407, 419, 4, 104},
+		{407, 419, 5, 105}, {407, 419, 6, 106}, {408, 419, 7, 407}, {409, 419, 8, 408}, {410, 419, 9, 409},
+		{411, 419, 10, 410}, {412, 419, 11, 411}, {413, 419, 12, 412}, {414, 419, 13, 413}, {415, 419, 14, 414},
+		{416, 419, 15, 415}, {417, 419, 16, 416}, {418, 419, 17, 417}, {419, 419, 18, 418},
+
+		{510, 511, 1, 101}, {510, 511, 2, 102}, {510, 511, 3, 103}, {510, 511, 4, 104},
+		{510, 511, 5, 105}, {510, 511, 6, 106}, {510, 511, 7, 107}, {510, 511, 8, 108}, {510, 511, 9, 109},
+		{511, 511, 10, 510},
+
+		{613, 614, 1, 101}, {613, 614, 2, 102}, {613, 614, 3, 103}, {613, 614, 4, 104},
+		{613, 614, 5, 105}, {613, 614, 6, 106}, {613, 614, 7, 107}, {613, 614, 8, 108}, {613, 614, 9, 109},
+		{613, 614, 10, 110}, {613, 614, 11, 111}, {613, 614, 12, 112}, {614, 614, 13, 613},
+
+		{712, 718, 1, 101}, {712, 718, 2, 102}, {712, 718, 3, 103}, {712, 718, 4, 104},
+		{712, 718, 5, 105}, {712, 718, 6, 106}, {712, 718, 7, 407}, {712, 718, 8, 408}, {712, 718, 9, 409},
+		{712, 718, 10, 410}, {712, 718, 11, 411}, {713, 718, 12, 712}, {714, 718, 13, 713}, {715, 718, 14, 714},
+		{716, 718, 15, 715}, {717, 718, 16, 716}, {718, 718, 17, 717},
+
+		{815, 819, 1, 101}, {815, 819, 2, 102}, {815, 819, 3, 103}, {815, 819, 4, 104},
+		{815, 819, 5, 105}, {815, 819, 6, 106}, {815, 819, 7, 407}, {815, 819, 8, 408}, {815, 819, 9, 409},
+		{815, 819, 10, 410}, {815, 819, 11, 411}, {815, 819, 12, 712}, {815, 819, 13, 713}, {815, 819, 14, 714},
+		{816, 819, 15, 815}, {817, 819, 16, 816}, {818, 819, 17, 817}, {819, 819, 18, 818},
+	}
+
+	for i := 0; i < len(ancestor_cases); i++ {
+		for b := ancestor_cases[i][0]; b <= ancestor_cases[i][1]; b++ {
+			block_id := GetBlockId(b)
+			height := ancestor_cases[i][2]
+			expected_ancestor_id := GetBlockId(ancestor_cases[i][3])
+
+			get_req := GetBlocksByHeightReq{}
+			get_req.HeadBlockId = block_id
+			get_req.AncestorStartHeight = BlockHeightType(height)
+			get_req.NumBlocks = 1
+			get_req.ReturnBlockBlob = false
+			get_req.ReturnReceiptBlob = false
+
+			generic_req := BlockStoreReq{get_req}
+
+			json, err := generic_req.MarshalJSON()
+			if err != nil {
+				t.Error("Could not marshal JSON", err)
+			}
+			fmt.Printf("%s\n", string(json))
+
+			result, err := handler.HandleRequest(&generic_req)
+			if err != nil {
+				t.Error("Got error retrieving block:", err)
+			}
+			if result == nil {
+				t.Error("Got nil result")
+			}
+
+			resp := result.Value.(GetBlocksByHeightResp)
+			if len(resp.BlockItems) != 1 {
+				t.Error("Expected result of length 1")
+			}
+
+			if resp.BlockItems[0].BlockHeight != BlockHeightType(height) {
+				t.Errorf("Unexpected ancestor height:  Got %d, expected %d", resp.BlockItems[0].BlockHeight, height)
+			}
+
+			if !resp.BlockItems[0].BlockId.Equals(&expected_ancestor_id) {
+				t.Error("Unexpected ancestor block ID")
+			}
+		}
+	}
+
 }

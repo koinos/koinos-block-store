@@ -52,6 +52,13 @@ func (e *UnexpectedHeightError) Error() string {
 	return "Unexpected height (corrupt block store?)"
 }
 
+type NotImplemented struct {
+}
+
+func (e *NotImplemented) Error() string {
+	return "Unimplemented case"
+}
+
 /**
  * Thrown when querying ancestor of block B at height H where H >= B.height.
  */
@@ -72,7 +79,28 @@ func (handler *RequestHandler) HandleGetBlocksByIdReq(req *types.GetBlocksByIdRe
 }
 
 func (handler *RequestHandler) HandleGetBlocksByHeightReq(req *types.GetBlocksByHeightReq) (*types.GetBlocksByHeightResp, error) {
+	if req.NumBlocks != 1 {
+		return nil, &NotImplemented{}
+	}
+	if req.ReturnBlockBlob {
+		return nil, &NotImplemented{}
+	}
+	if req.ReturnReceiptBlob {
+		return nil, &NotImplemented{}
+	}
+
+	ancestor_id, err := GetAncestorIdAtHeight(handler.backend, &req.HeadBlockId, req.AncestorStartHeight)
+	if err != nil {
+		return nil, err
+	}
+
 	resp := types.GetBlocksByHeightResp{}
+	resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, 1))
+	resp.BlockItems[0].BlockId = *ancestor_id
+	resp.BlockItems[0].BlockHeight = req.AncestorStartHeight
+	resp.BlockItems[0].BlockBlob = []byte{}
+	resp.BlockItems[0].BlockReceiptBlob = []byte{}
+
 	return &resp, nil
 }
 
@@ -114,11 +142,14 @@ func GetPreviousHeightIndex(goal types.BlockHeightType, current types.BlockHeigh
 	var last_h uint64 = 0
 	for i := 0; i <= zeros; i++ {
 		h := x - (uint64(1) << i)
+		fmt.Printf("      Check index %d, height %d\n", i, h)
 		if h < g {
+			fmt.Printf("      Return index %d, height %d\n", i+1, last_h)
 			return i + 1, types.BlockHeightType(last_h), nil
 		}
 		last_h = h
 	}
+	fmt.Printf("      Return index %d, height %d\n", zeros, last_h)
 	return zeros, types.BlockHeightType(last_h), nil
 }
 
@@ -127,7 +158,10 @@ func GetAncestorIdAtHeight(backend BlockStoreBackend, block_id *types.Multihash,
 	var expected_height types.BlockHeightType
 	var has_expected_height bool = false
 
+	fmt.Printf("Begin GetAncestorIdAtHeight(%s, %d)\n", hex.EncodeToString(block_id.Digest), height)
+
 	for {
+		fmt.Printf("   Iteration block ID: %s\n", hex.EncodeToString(block_id.Digest))
 		vb_key := block_id.Serialize(types.NewVariableBlob())
 
 		record_bytes, err := backend.Get(*vb_key)
@@ -152,6 +186,8 @@ func GetAncestorIdAtHeight(backend BlockStoreBackend, block_id *types.Multihash,
 			return nil, &DeserializeError{}
 		}
 		if has_expected_height && (record.BlockHeight != expected_height) {
+			fmt.Println("record height:", record.BlockHeight)
+			fmt.Println("expect height:", expected_height)
 			return nil, &UnexpectedHeightError{}
 		}
 
@@ -197,6 +233,7 @@ func (handler *RequestHandler) HandleAddBlockReq(req *types.AddBlockReq) (*types
 
 	if req.BlockToAdd.BlockHeight > 0 {
 		previous_heights := GetPreviousHeights(uint64(req.BlockToAdd.BlockHeight))
+		fmt.Println("previous_heights:", previous_heights)
 
 		record.PreviousBlockIds = make([]types.Multihash, len(previous_heights))
 
@@ -213,6 +250,7 @@ func (handler *RequestHandler) HandleAddBlockReq(req *types.AddBlockReq) (*types
 				}
 				record.PreviousBlockIds[i] = *previous_id
 			}
+			fmt.Printf("PreviousBlockIds[%d]: %s\n", i, hex.EncodeToString(record.PreviousBlockIds[i].Digest))
 		}
 	} else {
 		record.PreviousBlockIds = make([]types.Multihash, 0)

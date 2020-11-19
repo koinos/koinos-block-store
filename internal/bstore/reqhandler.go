@@ -143,7 +143,7 @@ func GetPreviousHeightIndex(goal types.BlockHeightType, current types.BlockHeigh
 	for i := 0; i <= zeros; i++ {
 		h := x - (uint64(1) << i)
 		if h < g {
-			return i + 1, types.BlockHeightType(last_h), nil
+			return i - 1, types.BlockHeightType(last_h), nil
 		}
 		last_h = h
 	}

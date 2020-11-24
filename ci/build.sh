@@ -3,8 +3,6 @@
 set -e
 set -x
 
-go get ./internal/bstore
-
 export PYTHONPATH=koinos-types/programs/koinos-types
 
 KOINOS_SCHEMA_DIR=koinos-types/gen/schema

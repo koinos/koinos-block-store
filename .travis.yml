@@ -3,6 +3,18 @@ language: go
 go:
   - 1.x
 
+addons:
+  apt:
+    packages:
+      - libboost-all-dev
+      - python3
+      - python3-pip
+      - python3-setuptools
+      - ruby-full
+      - cmake
+      - lcov
+  update: true
+
 jobs:
   include:
     - os: linux

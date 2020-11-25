@@ -20,9 +20,6 @@ jobs:
     - os: linux
       dist: focal
 
-before_install:
-  - ci/before_install.sh
-
 install:
   - source ci/install.sh
 

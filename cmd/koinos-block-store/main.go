@@ -32,6 +32,7 @@ func main() {
 
 	var opts = badger.DefaultOptions(*dFlag)
 	var backend = bstore.NewBadgerBackend(opts)
+	defer backend.Close()
 
 	handler := bstore.RequestHandler{Backend: backend}
 

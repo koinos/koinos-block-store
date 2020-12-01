@@ -47,6 +47,13 @@ func (e *TransactionNotPresent) Error() string {
 	return "Block was not present"
 }
 
+type NilTransaction struct {
+}
+
+func (e *NilTransaction) Error() string {
+	return "Transaction blob is Nil"
+}
+
 type DeserializeError struct {
 }
 
@@ -271,6 +278,10 @@ func (handler *RequestHandler) HandleAddBlockReq(req *types.AddBlockReq) (*types
 
 // HandleAddTransactionReq handles requests to add transactions to the blockstore
 func (handler *RequestHandler) HandleAddTransactionReq(req *types.AddTransactionReq) (*types.AddTransactionResp, error) {
+	if req.TransactionBlob == nil {
+		return nil, &NilTransaction{}
+	}
+
 	record := types.TransactionRecord{}
 	record.TransactionBlob = req.TransactionBlob
 
@@ -306,7 +317,7 @@ func (handler *RequestHandler) HandleGetTransactionsByIdReq(req *types.GetTransa
 		vbValue := types.VariableBlob(recordBytes)
 		consumed, record, err := types.DeserializeTransactionRecord(&vbValue)
 		if err != nil {
-			fmt.Println("Couldn't deserialize block record")
+			fmt.Println("Couldn't deserialize transaction record")
 			fmt.Println("vb: ", recordBytes)
 			return nil, err
 		}

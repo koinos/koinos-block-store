@@ -1,11 +1,15 @@
 package main
 
-import "bufio"
-import "encoding/hex"
-import "fmt"
-import "os"
-import "github.com/koinos/koinos-block-store/internal/bstore"
-import types "github.com/koinos/koinos-block-store/internal/types"
+import (
+	"bufio"
+	"encoding/hex"
+	"flag"
+	"fmt"
+	"github.com/dgraph-io/badger"
+	"github.com/koinos/koinos-block-store/internal/bstore"
+	types "github.com/koinos/koinos-block-store/internal/types"
+	"os"
+)
 
 // Send block to store
 //
@@ -24,9 +28,12 @@ func debugTesting() {
 }
 
 func main() {
-	//debugTesting()
+	var dFlag = flag.String("d", "./db", "the database directory")
 
-	handler := bstore.RequestHandler{}
+	var opts = badger.DefaultOptions(*dFlag)
+	var backend = bstore.NewBadgerBackend(opts)
+
+	handler := bstore.RequestHandler{Backend: backend}
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {

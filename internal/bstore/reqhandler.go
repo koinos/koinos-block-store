@@ -7,7 +7,7 @@ import "math/bits"
 import types "github.com/koinos/koinos-block-store/internal/types"
 
 type RequestHandler struct {
-	backend BlockStoreBackend
+	Backend BlockStoreBackend
 }
 
 type ReservedReqError struct {
@@ -89,7 +89,7 @@ func (handler *RequestHandler) HandleGetBlocksByHeightReq(req *types.GetBlocksBy
 		return nil, &NotImplemented{}
 	}
 
-	ancestor_id, err := GetAncestorIdAtHeight(handler.backend, &req.HeadBlockId, req.AncestorStartHeight)
+	ancestor_id, err := GetAncestorIdAtHeight(handler.Backend, &req.HeadBlockId, req.AncestorStartHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +237,7 @@ func (handler *RequestHandler) HandleAddBlockReq(req *types.AddBlockReq) (*types
 			} else if h == uint64(record.BlockHeight)-1 {
 				record.PreviousBlockIds[i] = req.PreviousBlockId
 			} else {
-				previous_id, err := GetAncestorIdAtHeight(handler.backend, &req.PreviousBlockId, types.BlockHeightType(h))
+				previous_id, err := GetAncestorIdAtHeight(handler.Backend, &req.PreviousBlockId, types.BlockHeightType(h))
 				if err != nil {
 					return nil, err
 				}
@@ -251,7 +251,7 @@ func (handler *RequestHandler) HandleAddBlockReq(req *types.AddBlockReq) (*types
 	vb_key := record.BlockId.Serialize(types.NewVariableBlob())
 	vb_value := record.Serialize(types.NewVariableBlob())
 
-	err := handler.backend.Put(*vb_key, *vb_value)
+	err := handler.Backend.Put(*vb_key, *vb_value)
 	if err != nil {
 		return nil, err
 	}

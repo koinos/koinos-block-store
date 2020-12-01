@@ -311,6 +311,8 @@ func TestAddTransaction(t *testing.T) {
 		_, err := handler.HandleRequest(&bsr)
 		if _, ok := err.(*NilTransaction); !ok {
 			t.Error("Nil transaction not returning correct error.")
+		} else if err.Error() == "" {
+			t.Error("Error incorrect message:", err)
 		}
 	}
 
@@ -343,6 +345,8 @@ func TestAddTransaction(t *testing.T) {
 		_, err := handler.HandleRequest(&bsr)
 		if _, ok := err.(*TransactionNotPresent); !ok {
 			t.Error("Did not recieve expected TransactionNotPresent error")
+		} else if err.Error() == "" {
+			t.Error("Error incorrect message:", err)
 		}
 	}
 }

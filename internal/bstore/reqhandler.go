@@ -44,7 +44,7 @@ type TransactionNotPresent struct {
 }
 
 func (e *TransactionNotPresent) Error() string {
-	return "Block was not present"
+	return "Transaction was not present"
 }
 
 type NilTransaction struct {

@@ -22,5 +22,13 @@ func TestBadgerBackendBasic(t *testing.T) {
 	if v != nil {
 		t.Errorf("expected nil value")
 	}
+	b.Put([]byte("test"), []byte("second"))
+	v, e = b.Get([]byte("test"))
+	if e != nil {
+		t.Errorf("error: %s", e)
+	}
+	if !bytes.Equal(v, []byte("second")) {
+		t.Errorf("error: slice not equivalent")
+	}
 	CloseBackend(b)
 }

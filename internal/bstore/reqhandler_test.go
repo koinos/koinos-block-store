@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -272,6 +273,45 @@ func GetGetTransactionsByIdReq(start uint64, num uint64) GetTransactionsByIdReq 
 	return r
 }
 
+type TxnErrorBackend struct {
+}
+
+// Put returns an error
+func (backend *TxnErrorBackend) Put(key []byte, value []byte) error {
+	return errors.New("Error on put")
+}
+
+// Get gets an error
+func (backend *TxnErrorBackend) Get(key []byte) ([]byte, error) {
+	return nil, errors.New("Error on get")
+}
+
+type TxnBadBackend struct {
+}
+
+// Put returns an error
+func (backend *TxnBadBackend) Put(key []byte, value []byte) error {
+	return nil
+}
+
+// Get gets an error
+func (backend *TxnBadBackend) Get(key []byte) ([]byte, error) {
+	return []byte{255, 255, 255, 255, 255}, nil
+}
+
+type TxnLongBackend struct {
+}
+
+// Put returns an error
+func (backend *TxnLongBackend) Put(key []byte, value []byte) error {
+	return nil
+}
+
+// Get gets an error
+func (backend *TxnLongBackend) Get(key []byte) ([]byte, error) {
+	return []byte{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, nil
+}
+
 func TestAddTransaction(t *testing.T) {
 	reqs := make([]types.AddTransactionReq, 32)
 	for i := 0; i < 32; i++ {
@@ -347,6 +387,36 @@ func TestAddTransaction(t *testing.T) {
 			t.Error("Did not recieve expected TransactionNotPresent error")
 		} else if err.Error() == "" {
 			t.Error("Error incorrect message:", err)
+		}
+	}
+
+	// Test error on add
+	{
+		handler := RequestHandler{&TxnErrorBackend{}}
+		tr := types.BlockStoreReq{Value: GetAddTransactionReq(2)}
+		_, err := handler.HandleRequest(&tr)
+		if err == nil {
+			t.Error("Should have errored on transaction add, but did not")
+		}
+	}
+
+	// Test bad record
+	{
+		handler := RequestHandler{&TxnBadBackend{}}
+		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
+		_, err := handler.HandleRequest(&tr)
+		if err == nil {
+			t.Error("Should have errored on transaction add, but did not")
+		}
+	}
+
+	// Test too long record
+	{
+		handler := RequestHandler{&TxnLongBackend{}}
+		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
+		_, err := handler.HandleRequest(&tr)
+		if err == nil {
+			t.Error("Should have errored on transaction add, but did not")
 		}
 	}
 }

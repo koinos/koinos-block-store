@@ -1,10 +1,12 @@
 package bstore
 
-import "encoding/hex"
-import "fmt"
-import "math/bits"
+import (
+	"encoding/hex"
+	"fmt"
+	"math/bits"
 
-import types "github.com/koinos/koinos-block-store/internal/types"
+	types "github.com/koinos/koinos-block-store/internal/types"
+)
 
 type RequestHandler struct {
 	backend BlockStoreBackend
@@ -35,6 +37,13 @@ type BlockNotPresent struct {
 }
 
 func (e *BlockNotPresent) Error() string {
+	return "Block was not present"
+}
+
+type TransactionNotPresent struct {
+}
+
+func (e *TransactionNotPresent) Error() string {
 	return "Block was not present"
 }
 
@@ -260,6 +269,56 @@ func (handler *RequestHandler) HandleAddBlockReq(req *types.AddBlockReq) (*types
 	return &resp, nil
 }
 
+// HandleAddTransactionReq handles requests to add transactions to the blockstore
+func (handler *RequestHandler) HandleAddTransactionReq(req *types.AddTransactionReq) (*types.AddTransactionResp, error) {
+	record := types.TransactionRecord{}
+	record.TransactionBlob = req.TransactionBlob
+
+	vbKey := req.TransactionId.Serialize(types.NewVariableBlob())
+	vbValue := record.Serialize(types.NewVariableBlob())
+
+	err := handler.backend.Put(*vbKey, *vbValue)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := types.AddTransactionResp{}
+	return &resp, nil
+}
+
+// HandleGetTransactionsByIdReq handles requests to fetch transactions from the blockstore
+func (handler *RequestHandler) HandleGetTransactionsByIdReq(req *types.GetTransactionsByIdReq) (*types.GetTransactionsByIdResp, error) {
+	resp := types.GetTransactionsByIdResp{}
+	resp.TransactionItems = types.VectorTransactionItem(make([]types.TransactionItem, 0))
+
+	for _, tid := range req.TransactionIds {
+		vbKey := tid.Serialize(types.NewVariableBlob())
+
+		recordBytes, err := handler.backend.Get(*vbKey)
+		if err != nil {
+			return nil, err
+		}
+		if recordBytes == nil {
+			fmt.Println("Transaction not present, key is", hex.EncodeToString(tid.Digest))
+			return nil, &TransactionNotPresent{}
+		}
+
+		vbValue := types.VariableBlob(recordBytes)
+		consumed, record, err := types.DeserializeTransactionRecord(&vbValue)
+		if err != nil {
+			fmt.Println("Couldn't deserialize block record")
+			fmt.Println("vb: ", recordBytes)
+			return nil, err
+		}
+		if consumed != uint64(len(recordBytes)) {
+			return nil, &DeserializeError{}
+		}
+		resp.TransactionItems = append(resp.TransactionItems, types.TransactionItem{TransactionBlob: record.TransactionBlob})
+	}
+
+	return &resp, nil
+}
+
 func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) (*types.BlockStoreResp, error) {
 	switch req.Value.(type) {
 	case types.ReservedReq:
@@ -268,28 +327,42 @@ func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) (*types.B
 		if err != nil {
 			return nil, err
 		}
-		return &types.BlockStoreResp{*result}, nil
+		return &types.BlockStoreResp{Value: *result}, nil
 	case types.GetBlocksByIdReq:
 		v := req.Value.(types.GetBlocksByIdReq)
 		result, err := handler.HandleGetBlocksByIdReq(&v)
 		if err != nil {
 			return nil, err
 		}
-		return &types.BlockStoreResp{*result}, nil
+		return &types.BlockStoreResp{Value: *result}, nil
 	case types.GetBlocksByHeightReq:
 		v := req.Value.(types.GetBlocksByHeightReq)
 		result, err := handler.HandleGetBlocksByHeightReq(&v)
 		if err != nil {
 			return nil, err
 		}
-		return &types.BlockStoreResp{*result}, nil
+		return &types.BlockStoreResp{Value: *result}, nil
 	case types.AddBlockReq:
 		v := req.Value.(types.AddBlockReq)
 		result, err := handler.HandleAddBlockReq(&v)
 		if err != nil {
 			return nil, err
 		}
-		return &types.BlockStoreResp{*result}, nil
+		return &types.BlockStoreResp{Value: *result}, nil
+	case types.AddTransactionReq:
+		v := req.Value.(types.AddTransactionReq)
+		result, err := handler.HandleAddTransactionReq(&v)
+		if err != nil {
+			return nil, err
+		}
+		return &types.BlockStoreResp{Value: *result}, nil
+	case types.GetTransactionsByIdReq:
+		v := req.Value.(types.GetTransactionsByIdReq)
+		result, err := handler.HandleGetTransactionsByIdReq(&v)
+		if err != nil {
+			return nil, err
+		}
+		return &types.BlockStoreResp{Value: *result}, nil
 	}
 	return nil, &UnknownReqError{}
 }

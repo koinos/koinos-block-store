@@ -32,7 +32,10 @@ func (backend *BadgerBackend) Get(key []byte) ([]byte, error) {
 	var value []byte = nil
 	err := backend.DB.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
-		if err != nil {
+		if err == badger.ErrKeyNotFound {
+			value = make([]byte, 0)
+			return nil
+		} else if err != nil {
 			return err
 		}
 		err = item.Value(func(val []byte) error {
@@ -41,5 +44,6 @@ func (backend *BadgerBackend) Get(key []byte) ([]byte, error) {
 		})
 		return err
 	})
+
 	return value, err
 }

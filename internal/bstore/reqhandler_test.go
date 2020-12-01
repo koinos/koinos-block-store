@@ -374,75 +374,80 @@ func TestAddTransaction(t *testing.T) {
 	}
 
 	// Add the transactions
-	handler := RequestHandler{NewMapBackend()}
-	for _, req := range reqs {
-		bsr := types.BlockStoreReq{Value: req}
+	for bType := range backendTypes {
+		b := NewBackend(bType)
+		handler := RequestHandler{b}
+		for _, req := range reqs {
+			bsr := types.BlockStoreReq{Value: req}
 
-		result, err := handler.HandleRequest(&bsr)
-		if err != nil {
-			t.Error("Got error adding transaction:", err)
-		}
-		if result == nil {
-			t.Error("Got nil result")
-		}
-	}
-
-	// Test adding an already existing transaction
-	{
-		bsr := types.BlockStoreReq{Value: reqs[0]}
-		result, err := handler.HandleRequest(&bsr)
-		if err != nil {
-			t.Error("Got error adding transaction:", err)
-		}
-		if result == nil {
-			t.Error("Got nil result")
-		}
-	}
-
-	// Test adding bad transaction
-	{
-		r := types.AddTransactionReq{TransactionId: reqs[0].TransactionId, TransactionBlob: nil}
-		bsr := types.BlockStoreReq{Value: r}
-		_, err := handler.HandleRequest(&bsr)
-		if _, ok := err.(*NilTransaction); !ok {
-			t.Error("Nil transaction not returning correct error.")
-		} else if err.Error() == "" {
-			t.Error("Error incorrect message:", err)
-		}
-	}
-
-	// Fetch the transactions
-	{
-		bsr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 32)}
-		result, err := handler.HandleRequest(&bsr)
-		if err != nil {
-			t.Error("Error fetching transactions:", err)
-		}
-		if result == nil {
-			t.Error("Got nil result")
-		}
-
-		tres, ok := result.Value.(GetTransactionsByIdResp)
-		if !ok {
-			t.Error("Result is wrong type")
-		}
-
-		for i, nt := range tres.TransactionItems {
-			if !bytes.Equal(reqs[i].TransactionBlob, nt.TransactionBlob) {
-				t.Error("Result does not match added transaction")
+			result, err := handler.HandleRequest(&bsr)
+			if err != nil {
+				t.Error("Got error adding transaction:", err)
+			}
+			if result == nil {
+				t.Error("Got nil result")
 			}
 		}
-	}
 
-	// Test fetching an invalid transaction
-	{
-		bsr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(64, 1)}
-		_, err := handler.HandleRequest(&bsr)
-		if _, ok := err.(*TransactionNotPresent); !ok {
-			t.Error("Did not recieve expected TransactionNotPresent error")
-		} else if err.Error() == "" {
-			t.Error("Error incorrect message:", err)
+		// Test adding an already existing transaction
+		{
+			bsr := types.BlockStoreReq{Value: reqs[0]}
+			result, err := handler.HandleRequest(&bsr)
+			if err != nil {
+				t.Error("Got error adding transaction:", err)
+			}
+			if result == nil {
+				t.Error("Got nil result")
+			}
 		}
+
+		// Test adding bad transaction
+		{
+			r := types.AddTransactionReq{TransactionId: reqs[0].TransactionId, TransactionBlob: nil}
+			bsr := types.BlockStoreReq{Value: r}
+			_, err := handler.HandleRequest(&bsr)
+			if _, ok := err.(*NilTransaction); !ok {
+				t.Error("Nil transaction not returning correct error.")
+			} else if err.Error() == "" {
+				t.Error("Error incorrect message:", err)
+			}
+		}
+
+		// Fetch the transactions
+		{
+			bsr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 32)}
+			result, err := handler.HandleRequest(&bsr)
+			if err != nil {
+				t.Error("Error fetching transactions:", err)
+			}
+			if result == nil {
+				t.Error("Got nil result")
+			}
+
+			tres, ok := result.Value.(GetTransactionsByIdResp)
+			if !ok {
+				t.Error("Result is wrong type")
+			}
+
+			for i, nt := range tres.TransactionItems {
+				if !bytes.Equal(reqs[i].TransactionBlob, nt.TransactionBlob) {
+					t.Error("Result does not match added transaction")
+				}
+			}
+		}
+
+		// Test fetching an invalid transaction
+		{
+			bsr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(64, 1)}
+			_, err := handler.HandleRequest(&bsr)
+			if _, ok := err.(*TransactionNotPresent); !ok {
+				t.Error("Did not recieve expected TransactionNotPresent error")
+			} else if err.Error() == "" {
+				t.Error("Error incorrect message:", err)
+			}
+		}
+
+		CloseBackend(b)
 	}
 
 	// Test error on add
@@ -455,13 +460,23 @@ func TestAddTransaction(t *testing.T) {
 		}
 	}
 
+	// Test error on get
+	{
+		handler := RequestHandler{&TxnErrorBackend{}}
+		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
+		_, err := handler.HandleRequest(&tr)
+		if err == nil {
+			t.Error("Should have errored on transaction get, but did not")
+		}
+	}
+
 	// Test bad record
 	{
 		handler := RequestHandler{&TxnBadBackend{}}
 		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
 		_, err := handler.HandleRequest(&tr)
 		if err == nil {
-			t.Error("Should have errored on transaction add, but did not")
+			t.Error("Should have errored on transaction get, but did not")
 		}
 	}
 
@@ -471,7 +486,7 @@ func TestAddTransaction(t *testing.T) {
 		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
 		_, err := handler.HandleRequest(&tr)
 		if err == nil {
-			t.Error("Should have errored on transaction add, but did not")
+			t.Error("Should have errored on transaction get, but did not")
 		}
 	}
 }

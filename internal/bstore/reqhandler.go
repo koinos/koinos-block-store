@@ -288,7 +288,7 @@ func (handler *RequestHandler) HandleAddTransactionReq(req *types.AddTransaction
 	vbKey := req.TransactionId.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
 
-	err := handler.backend.Put(*vbKey, *vbValue)
+	err := handler.Backend.Put(*vbKey, *vbValue)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +305,7 @@ func (handler *RequestHandler) HandleGetTransactionsByIdReq(req *types.GetTransa
 	for _, tid := range req.TransactionIds {
 		vbKey := tid.Serialize(types.NewVariableBlob())
 
-		recordBytes, err := handler.backend.Get(*vbKey)
+		recordBytes, err := handler.Backend.Get(*vbKey)
 		if err != nil {
 			return nil, err
 		}

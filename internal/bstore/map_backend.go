@@ -16,6 +16,9 @@ func NewMapBackend() *MapBackend {
 }
 
 func (backend *MapBackend) Put(key []byte, value []byte) error {
+	if key == nil {
+		return errors.New("Cannot put a nil value key")
+	}
 	if value == nil {
 		return errors.New("Cannot put a nil value")
 	}

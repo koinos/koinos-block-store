@@ -309,7 +309,7 @@ func (handler *RequestHandler) HandleGetTransactionsByIdReq(req *types.GetTransa
 		if err != nil {
 			return nil, err
 		}
-		if recordBytes == nil {
+		if len(recordBytes) == 0 {
 			fmt.Println("Transaction not present, key is", hex.EncodeToString(tid.Digest))
 			return nil, &TransactionNotPresent{}
 		}

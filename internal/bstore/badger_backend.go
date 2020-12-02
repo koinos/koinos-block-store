@@ -1,6 +1,8 @@
 package bstore
 
 import (
+	"errors"
+
 	"github.com/dgraph-io/badger"
 )
 
@@ -22,6 +24,9 @@ func (backend *BadgerBackend) Close() {
 
 // Put backend setter
 func (backend *BadgerBackend) Put(key, value []byte) error {
+	if value == nil {
+		return errors.New("Cannot put a nil value")
+	}
 	return backend.DB.Update(func(txn *badger.Txn) error {
 		return txn.Set(key, value)
 	})

@@ -16,11 +16,11 @@ func TestBadgerBackendBasic(t *testing.T) {
 		t.Errorf("error: slice not equivalent")
 	}
 	v, e = b.Get([]byte("notfound"))
-	if e == nil {
-		t.Errorf("expected error")
+	if len(v) != 0 {
+		t.Errorf("expected empty slice")
 	}
-	if v != nil {
-		t.Errorf("expected nil value")
+	if e != nil {
+		t.Error("Expected no error, recieved:", e)
 	}
 	b.Put([]byte("test"), []byte("second"))
 	v, e = b.Get([]byte("test"))

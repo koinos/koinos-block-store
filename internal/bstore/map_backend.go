@@ -29,6 +29,9 @@ func (backend *MapBackend) Put(key []byte, value []byte) error {
 }
 
 func (backend *MapBackend) Get(key []byte) ([]byte, error) {
+	if len(key) == 0 {
+		return nil, errors.New("Key cannot be empty")
+	}
 	k := hex.EncodeToString(key)
 	//fmt.Println("Getting key:", k)
 	val, ok := backend.storage[k]

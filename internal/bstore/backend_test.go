@@ -20,7 +20,7 @@ func TestBadgerBackendBasic(t *testing.T) {
 		t.Errorf("expected empty slice")
 	}
 	if e != nil {
-		t.Error("Expected no error, recieved:", e)
+		t.Error("expected no error, received:", e)
 	}
 	b.Put([]byte("test"), []byte("second"))
 	v, e = b.Get([]byte("test"))
@@ -31,12 +31,19 @@ func TestBadgerBackendBasic(t *testing.T) {
 		t.Errorf("error: slice not equivalent")
 	}
 	if err := b.Put([]byte("test2"), nil); err == nil {
-		t.Error("Putting a nil value should give an error")
+		t.Error("putting a nil value should give an error")
 	}
 	if err := b.Put(nil, []byte("hello")); err == nil {
-		t.Error("Putting a nil value should give an error")
+		t.Error("putting a nil value should give an error")
 	}
-
+	v, e = b.Get([]byte{})
+	if e == nil {
+		t.Error("expected error empty key")
+	}
+	v, e = b.Get(nil)
+	if e == nil {
+		t.Error("expected error empty key")
+	}
 	CloseBackend(b)
 }
 
@@ -70,5 +77,13 @@ func TestMapBackendBasic(t *testing.T) {
 	}
 	if err := b.Put(nil, []byte("hello")); err == nil {
 		t.Error("Putting a nil value should give an error")
+	}
+	v, e = b.Get([]byte{})
+	if e == nil {
+		t.Error("expected error empty key")
+	}
+	v, e = b.Get(nil)
+	if e == nil {
+		t.Error("expected error empty key")
 	}
 }

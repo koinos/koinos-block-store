@@ -1,6 +1,9 @@
 package bstore
 
-import "encoding/hex"
+import (
+	"encoding/hex"
+	"errors"
+)
 
 //import "fmt"
 
@@ -13,6 +16,12 @@ func NewMapBackend() *MapBackend {
 }
 
 func (backend *MapBackend) Put(key []byte, value []byte) error {
+	if key == nil {
+		return errors.New("Cannot put a nil value key")
+	}
+	if value == nil {
+		return errors.New("Cannot put a nil value")
+	}
 	k := hex.EncodeToString(key)
 	//fmt.Println("Putting key:", k)
 	backend.storage[k] = value
@@ -20,12 +29,15 @@ func (backend *MapBackend) Put(key []byte, value []byte) error {
 }
 
 func (backend *MapBackend) Get(key []byte) ([]byte, error) {
+	if len(key) == 0 {
+		return nil, errors.New("Key cannot be empty")
+	}
 	k := hex.EncodeToString(key)
 	//fmt.Println("Getting key:", k)
 	val, ok := backend.storage[k]
 	if ok {
 		return val, nil
 	} else {
-		return nil, nil
+		return make([]byte, 0), nil
 	}
 }

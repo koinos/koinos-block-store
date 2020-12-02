@@ -86,18 +86,52 @@ struct block_record
    types::variable_blob                  block_receipt_blob;
 };
 
+struct add_transaction_req
+{
+   types::multihash                      transaction_id;
+   types::variable_blob                  transaction_blob;
+};
+
+struct add_transaction_resp
+{
+};
+
+struct transaction_record
+{
+   types::variable_blob                 transaction_blob;
+};
+
+struct get_transactions_by_id_req
+{
+   std::vector< types::multihash >      transaction_ids;
+};
+
+struct transaction_item
+{
+   types::variable_blob                 transaction_blob;
+};
+
+struct get_transactions_by_id_resp
+{
+   std::vector< transaction_item >      transaction_items;
+};
+
 typedef std::variant<
    reserved_req,
    get_blocks_by_id_req,
    get_blocks_by_height_req,
-   add_block_req
+   add_block_req,
+   add_transaction_req,
+   get_transactions_by_id_req
    > block_store_req;
 
 typedef std::variant<
    reserved_resp,
    get_blocks_by_id_resp,
    get_blocks_by_height_resp,
-   add_block_resp
+   add_block_resp,
+   add_transaction_resp,
+   get_transactions_by_id_resp
    > block_store_resp;
 
 } } }

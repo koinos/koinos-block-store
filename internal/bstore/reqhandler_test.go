@@ -1,15 +1,19 @@
 package bstore
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
-	"github.com/dgraph-io/badger"
 	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/dgraph-io/badger"
+
 	. "github.com/koinos/koinos-block-store/internal/types"
+	types "github.com/koinos/koinos-block-store/internal/types"
 )
 
 const (
@@ -302,5 +306,187 @@ func TestAddBlocks(t *testing.T) {
 			}
 		}
 		CloseBackend(b)
+	}
+}
+
+func GetAddTransactionReq(n UInt64) AddTransactionReq {
+	vb := n.Serialize(types.NewVariableBlob())
+	m := Multihash{Id: 0x12, Digest: *vb}
+	r := types.AddTransactionReq{TransactionId: m, TransactionBlob: *vb}
+	return r
+}
+
+func GetGetTransactionsByIdReq(start uint64, num uint64) GetTransactionsByIdReq {
+	vm := make([]Multihash, 0)
+	for i := UInt64(start); i < UInt64(start+num); i++ {
+		vb := i.Serialize(types.NewVariableBlob())
+		m := Multihash{Id: 0x12, Digest: *vb}
+		vm = append(vm, m)
+	}
+
+	r := types.GetTransactionsByIdReq{TransactionIds: vm}
+	return r
+}
+
+type TxnErrorBackend struct {
+}
+
+// Put returns an error
+func (backend *TxnErrorBackend) Put(key []byte, value []byte) error {
+	return errors.New("Error on put")
+}
+
+// Get gets an error
+func (backend *TxnErrorBackend) Get(key []byte) ([]byte, error) {
+	return nil, errors.New("Error on get")
+}
+
+type TxnBadBackend struct {
+}
+
+// Put returns an error
+func (backend *TxnBadBackend) Put(key []byte, value []byte) error {
+	return nil
+}
+
+// Get gets an error
+func (backend *TxnBadBackend) Get(key []byte) ([]byte, error) {
+	return []byte{255, 255, 255, 255, 255}, nil
+}
+
+type TxnLongBackend struct {
+}
+
+// Put returns an error
+func (backend *TxnLongBackend) Put(key []byte, value []byte) error {
+	return nil
+}
+
+// Get gets an error
+func (backend *TxnLongBackend) Get(key []byte) ([]byte, error) {
+	return []byte{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, nil
+}
+
+func TestAddTransaction(t *testing.T) {
+	reqs := make([]types.AddTransactionReq, 32)
+	for i := 0; i < 32; i++ {
+		reqs[i] = GetAddTransactionReq(UInt64(i))
+	}
+
+	// Add the transactions
+	for bType := range backendTypes {
+		b := NewBackend(bType)
+		handler := RequestHandler{b}
+		for _, req := range reqs {
+			bsr := types.BlockStoreReq{Value: req}
+
+			result, err := handler.HandleRequest(&bsr)
+			if err != nil {
+				t.Error("Got error adding transaction:", err)
+			}
+			if result == nil {
+				t.Error("Got nil result")
+			}
+		}
+
+		// Test adding an already existing transaction
+		{
+			bsr := types.BlockStoreReq{Value: reqs[0]}
+			result, err := handler.HandleRequest(&bsr)
+			if err != nil {
+				t.Error("Got error adding transaction:", err)
+			}
+			if result == nil {
+				t.Error("Got nil result")
+			}
+		}
+
+		// Test adding bad transaction
+		{
+			r := types.AddTransactionReq{TransactionId: reqs[0].TransactionId, TransactionBlob: nil}
+			bsr := types.BlockStoreReq{Value: r}
+			_, err := handler.HandleRequest(&bsr)
+			if _, ok := err.(*NilTransaction); !ok {
+				t.Error("Nil transaction not returning correct error.")
+			} else if err.Error() == "" {
+				t.Error("Error incorrect message:", err)
+			}
+		}
+
+		// Fetch the transactions
+		{
+			bsr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 32)}
+			result, err := handler.HandleRequest(&bsr)
+			if err != nil {
+				t.Error("Error fetching transactions:", err)
+			}
+			if result == nil {
+				t.Error("Got nil result")
+			}
+
+			tres, ok := result.Value.(GetTransactionsByIdResp)
+			if !ok {
+				t.Error("Result is wrong type")
+			}
+
+			for i, nt := range tres.TransactionItems {
+				if !bytes.Equal(reqs[i].TransactionBlob, nt.TransactionBlob) {
+					t.Error("Result does not match added transaction")
+				}
+			}
+		}
+
+		// Test fetching an invalid transaction
+		{
+			bsr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(64, 1)}
+			_, err := handler.HandleRequest(&bsr)
+			if _, ok := err.(*TransactionNotPresent); !ok {
+				t.Error("Did not recieve expected TransactionNotPresent error")
+			} else if err.Error() == "" {
+				t.Error("Error incorrect message:", err)
+			}
+		}
+
+		CloseBackend(b)
+	}
+
+	// Test error on add
+	{
+		handler := RequestHandler{&TxnErrorBackend{}}
+		tr := types.BlockStoreReq{Value: GetAddTransactionReq(2)}
+		_, err := handler.HandleRequest(&tr)
+		if err == nil {
+			t.Error("Should have errored on transaction add, but did not")
+		}
+	}
+
+	// Test error on get
+	{
+		handler := RequestHandler{&TxnErrorBackend{}}
+		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
+		_, err := handler.HandleRequest(&tr)
+		if err == nil {
+			t.Error("Should have errored on transaction get, but did not")
+		}
+	}
+
+	// Test bad record
+	{
+		handler := RequestHandler{&TxnBadBackend{}}
+		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
+		_, err := handler.HandleRequest(&tr)
+		if err == nil {
+			t.Error("Should have errored on transaction get, but did not")
+		}
+	}
+
+	// Test too long record
+	{
+		handler := RequestHandler{&TxnLongBackend{}}
+		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
+		_, err := handler.HandleRequest(&tr)
+		if err == nil {
+			t.Error("Should have errored on transaction get, but did not")
+		}
 	}
 }

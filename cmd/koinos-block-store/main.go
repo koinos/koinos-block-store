@@ -5,10 +5,11 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"os"
+
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	types "github.com/koinos/koinos-block-store/internal/types"
-	"os"
 )
 
 // Send block to store
@@ -21,8 +22,8 @@ import (
 func debugTesting() {
 	// Some testing stuff
 	h, _ := hex.DecodeString("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-	block_id := types.Multihash{Id: 0x12, Digest: types.VariableBlob(h)}
-	test_req := types.BlockStoreReq{types.GetBlocksByIdReq{BlockId: types.VectorMultihash{block_id}}}
+	block_id := types.Multihash{ID: 0x12, Digest: types.VariableBlob(h)}
+	test_req := types.BlockStoreReq{types.GetBlocksByIDReq{BlockID: types.VectorMultihash{block_id}}}
 	test_req_json, _ := test_req.MarshalJSON()
 	fmt.Println(string(test_req_json))
 }

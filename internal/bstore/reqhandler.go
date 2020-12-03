@@ -89,9 +89,8 @@ func (handler *RequestHandler) HandleReservedReq(req *types.ReservedReq) (*types
 	return nil, &ReservedReqError{}
 }
 
-func (handler *RequestHandler) HandleGetBlocksByIdReq(req *types.GetBlocksByIdReq) (*types.GetBlocksByIdResp, error) {
-	resp := types.GetBlocksByIdResp{types.VectorBlockItem{}}
-	return &resp, nil
+func (handler *RequestHandler) HandleGetBlocksByIdReq(req *types.GetBlocksByIDReq) (*types.GetBlocksByIDResp, error) {
+	return types.NewGetBlocksByIDResp(), nil
 }
 
 func (handler *RequestHandler) HandleGetBlocksByHeightReq(req *types.GetBlocksByHeightReq) (*types.GetBlocksByHeightResp, error) {
@@ -105,14 +104,14 @@ func (handler *RequestHandler) HandleGetBlocksByHeightReq(req *types.GetBlocksBy
 		return nil, &NotImplemented{}
 	}
 
-	ancestor_id, err := GetAncestorIdAtHeight(handler.Backend, &req.HeadBlockId, req.AncestorStartHeight)
+	ancestor_id, err := GetAncestorIdAtHeight(handler.Backend, &req.HeadBlockID, req.AncestorStartHeight)
 	if err != nil {
 		return nil, err
 	}
 
 	resp := types.GetBlocksByHeightResp{}
 	resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, 1))
-	resp.BlockItems[0].BlockId = *ancestor_id
+	resp.BlockItems[0].BlockID = *ancestor_id
 	resp.BlockItems[0].BlockHeight = req.AncestorStartHeight
 	resp.BlockItems[0].BlockBlob = []byte{}
 	resp.BlockItems[0].BlockReceiptBlob = []byte{}
@@ -202,7 +201,7 @@ func GetAncestorIdAtHeight(backend BlockStoreBackend, block_id *types.Multihash,
 		}
 
 		if record.BlockHeight == height {
-			return &record.BlockId, nil
+			return &record.BlockID, nil
 		}
 
 		new_index, new_height, err := GetPreviousHeightIndex(height, record.BlockHeight)
@@ -236,7 +235,7 @@ func (handler *RequestHandler) HandleAddBlockReq(req *types.AddBlockReq) (*types
 
 	record := types.BlockRecord{}
 
-	record.BlockId = req.BlockToAdd.BlockId
+	record.BlockID = req.BlockToAdd.BlockID
 	record.BlockHeight = req.BlockToAdd.BlockHeight
 	record.BlockBlob = req.BlockToAdd.BlockBlob
 	record.BlockReceiptBlob = req.BlockToAdd.BlockReceiptBlob
@@ -251,9 +250,9 @@ func (handler *RequestHandler) HandleAddBlockReq(req *types.AddBlockReq) (*types
 			if h >= uint64(record.BlockHeight) {
 				return nil, &InternalError{}
 			} else if h == uint64(record.BlockHeight)-1 {
-				record.PreviousBlockIds[i] = req.PreviousBlockId
+				record.PreviousBlockIds[i] = req.PreviousBlockID
 			} else {
-				previous_id, err := GetAncestorIdAtHeight(handler.Backend, &req.PreviousBlockId, types.BlockHeightType(h))
+				previous_id, err := GetAncestorIdAtHeight(handler.Backend, &req.PreviousBlockID, types.BlockHeightType(h))
 				if err != nil {
 					return nil, err
 				}
@@ -264,7 +263,7 @@ func (handler *RequestHandler) HandleAddBlockReq(req *types.AddBlockReq) (*types
 		record.PreviousBlockIds = make([]types.Multihash, 0)
 	}
 
-	vb_key := record.BlockId.Serialize(types.NewVariableBlob())
+	vb_key := record.BlockID.Serialize(types.NewVariableBlob())
 	vb_value := record.Serialize(types.NewVariableBlob())
 
 	err := handler.Backend.Put(*vb_key, *vb_value)
@@ -285,7 +284,7 @@ func (handler *RequestHandler) HandleAddTransactionReq(req *types.AddTransaction
 	record := types.TransactionRecord{}
 	record.TransactionBlob = req.TransactionBlob
 
-	vbKey := req.TransactionId.Serialize(types.NewVariableBlob())
+	vbKey := req.TransactionID.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
 
 	err := handler.Backend.Put(*vbKey, *vbValue)
@@ -298,8 +297,8 @@ func (handler *RequestHandler) HandleAddTransactionReq(req *types.AddTransaction
 }
 
 // HandleGetTransactionsByIdReq handles requests to fetch transactions from the blockstore
-func (handler *RequestHandler) HandleGetTransactionsByIdReq(req *types.GetTransactionsByIdReq) (*types.GetTransactionsByIdResp, error) {
-	resp := types.GetTransactionsByIdResp{}
+func (handler *RequestHandler) HandleGetTransactionsByIdReq(req *types.GetTransactionsByIDReq) (*types.GetTransactionsByIDResp, error) {
+	resp := types.GetTransactionsByIDResp{}
 	resp.TransactionItems = types.VectorTransactionItem(make([]types.TransactionItem, 0))
 
 	for _, tid := range req.TransactionIds {
@@ -332,44 +331,44 @@ func (handler *RequestHandler) HandleGetTransactionsByIdReq(req *types.GetTransa
 
 func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) (*types.BlockStoreResp, error) {
 	switch req.Value.(type) {
-	case types.ReservedReq:
-		v := req.Value.(types.ReservedReq)
-		result, err := handler.HandleReservedReq(&v)
+	case *types.ReservedReq:
+		v := req.Value.(*types.ReservedReq)
+		result, err := handler.HandleReservedReq(v)
 		if err != nil {
 			return nil, err
 		}
 		return &types.BlockStoreResp{Value: *result}, nil
-	case types.GetBlocksByIdReq:
-		v := req.Value.(types.GetBlocksByIdReq)
-		result, err := handler.HandleGetBlocksByIdReq(&v)
+	case *types.GetBlocksByIDReq:
+		v := req.Value.(*types.GetBlocksByIDReq)
+		result, err := handler.HandleGetBlocksByIdReq(v)
 		if err != nil {
 			return nil, err
 		}
 		return &types.BlockStoreResp{Value: *result}, nil
-	case types.GetBlocksByHeightReq:
-		v := req.Value.(types.GetBlocksByHeightReq)
-		result, err := handler.HandleGetBlocksByHeightReq(&v)
+	case *types.GetBlocksByHeightReq:
+		v := req.Value.(*types.GetBlocksByHeightReq)
+		result, err := handler.HandleGetBlocksByHeightReq(v)
 		if err != nil {
 			return nil, err
 		}
 		return &types.BlockStoreResp{Value: *result}, nil
-	case types.AddBlockReq:
-		v := req.Value.(types.AddBlockReq)
-		result, err := handler.HandleAddBlockReq(&v)
+	case *types.AddBlockReq:
+		v := req.Value.(*types.AddBlockReq)
+		result, err := handler.HandleAddBlockReq(v)
 		if err != nil {
 			return nil, err
 		}
 		return &types.BlockStoreResp{Value: *result}, nil
-	case types.AddTransactionReq:
-		v := req.Value.(types.AddTransactionReq)
-		result, err := handler.HandleAddTransactionReq(&v)
+	case *types.AddTransactionReq:
+		v := req.Value.(*types.AddTransactionReq)
+		result, err := handler.HandleAddTransactionReq(v)
 		if err != nil {
 			return nil, err
 		}
 		return &types.BlockStoreResp{Value: *result}, nil
-	case types.GetTransactionsByIdReq:
-		v := req.Value.(types.GetTransactionsByIdReq)
-		result, err := handler.HandleGetTransactionsByIdReq(&v)
+	case *types.GetTransactionsByIDReq:
+		v := req.Value.(*types.GetTransactionsByIDReq)
+		result, err := handler.HandleGetTransactionsByIdReq(v)
 		if err != nil {
 			return nil, err
 		}

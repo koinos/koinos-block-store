@@ -3,12 +3,14 @@ package main
 import (
 	"bufio"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
+
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	types "github.com/koinos/koinos-block-store/internal/types"
-	"os"
 )
 
 // Send block to store
@@ -21,10 +23,10 @@ import (
 func debugTesting() {
 	// Some testing stuff
 	h, _ := hex.DecodeString("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-	block_id := types.Multihash{Id: 0x12, Digest: types.VariableBlob(h)}
-	test_req := types.BlockStoreReq{types.GetBlocksByIdReq{BlockId: types.VectorMultihash{block_id}}}
-	test_req_json, _ := test_req.MarshalJSON()
-	fmt.Println(string(test_req_json))
+	blockID := types.Multihash{ID: 0x12, Digest: types.VariableBlob(h)}
+	testReq := types.BlockStoreReq{Value: &types.GetBlocksByIDReq{BlockID: types.VectorMultihash{blockID}}}
+	testReqJSON, _ := testReq.MarshalJSON()
+	fmt.Println(string(testReqJSON))
 }
 
 func main() {
@@ -40,7 +42,8 @@ func main() {
 	for scanner.Scan() {
 		var req types.BlockStoreReq
 
-		err := req.UnmarshalJSON([]byte(scanner.Text()))
+		b := types.BlockStoreReq{}
+		err := json.Unmarshal([]byte(scanner.Text()), &b)
 		if err != nil {
 			fmt.Println("Couldn't unmarshal request")
 			continue
@@ -53,13 +56,13 @@ func main() {
 		}
 		fmt.Println(resp.Value)
 
-		resp_json, err := resp.MarshalJSON()
+		respJSON, err := json.Marshal(resp)
 		if err != nil {
 			fmt.Println("Couldn't marshal response")
 			continue
 		}
 
-		fmt.Println(string(resp_json))
+		fmt.Println(string(respJSON))
 	}
 
 	//op := types.CreateSystemContractOperation{}

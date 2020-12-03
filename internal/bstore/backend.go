@@ -1,5 +1,6 @@
 package bstore
 
+// BlockStoreBackend interface defines an abstract key-value store
 type BlockStoreBackend interface {
 	/**
 	 * Store the given value in the given key.

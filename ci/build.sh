@@ -42,6 +42,7 @@ python3 -m koinos_codegen.codegen \
 mkdir -p internal/types
 cp -p gen/koinos/pack/basetypes.go internal/types/basetypes.go
 cp -p gen/koinos/pack/koinos.go internal/types/koinos.go
+rm -Rf gen
 
 go get ./...
 mkdir -p build

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -60,7 +61,7 @@ func TestHandleReservedRequest(t *testing.T) {
 		b := NewBackend(bType)
 		handler := RequestHandler{b}
 
-		testReq := BlockStoreReq{Value: ReservedReq{}}
+		testReq := BlockStoreReq{Value: NewReservedReq()}
 		result, err := handler.HandleRequest(&testReq)
 		if result != nil {
 			t.Error("Result should be nil")
@@ -138,7 +139,7 @@ func TestGetPreviousHeights(t *testing.T) {
 	for i := 0; i < len(testCases); i++ {
 		x := testCases[i][0][0]
 		yRef := testCases[i][1]
-		yTest := GetPreviousHeights(x)
+		yTest := getPreviousHeights(x)
 
 		if !SliceEqual(yRef, yTest) {
 			t.Errorf("Testing %d, expected %v, got %v", x, yRef, yTest)
@@ -157,13 +158,13 @@ func GetBlockID(num uint64) Multihash {
 
 	var vb VariableBlob = VariableBlob(hash[:])
 
-	return Multihash{0x12, vb}
+	return Multihash{ID: 0x12, Digest: vb}
 	// return Multihash{ 0x12, data_bytes[:count] }
 }
 
 func GetEmptyBlockID() Multihash {
 	vb := VariableBlob(make([]byte, 32))
-	return Multihash{0x12, vb}
+	return Multihash{ID: 0x12, Digest: vb}
 }
 
 func GetBlockBody(num uint64) VariableBlob {
@@ -200,15 +201,15 @@ func TestAddBlocks(t *testing.T) {
 
 				// fmt.Printf("Block %d has ID %v\n", tree[i][j], hex.EncodeToString( block_id.Digest ) );
 				addReq := AddBlockReq{}
-				addReq.BlockToAdd.BlockId = blockID
-				addReq.PreviousBlockId = parentID
+				addReq.BlockToAdd.BlockID = blockID
+				addReq.PreviousBlockID = parentID
 				addReq.BlockToAdd.BlockHeight = BlockHeightType(tree[i][j] % 100)
 				addReq.BlockToAdd.BlockBlob = GetBlockBody(tree[i][j])
 				addReq.BlockToAdd.BlockReceiptBlob = VariableBlob(make([]byte, 0))
 
-				genericReq := BlockStoreReq{Value: addReq}
+				genericReq := BlockStoreReq{Value: &addReq}
 
-				json, err := genericReq.MarshalJSON()
+				json, err := json.Marshal(genericReq)
 				if err != nil {
 					t.Error("Could not marshal JSON", err)
 				}
@@ -269,15 +270,15 @@ func TestAddBlocks(t *testing.T) {
 				expectedAncestorID := GetBlockID(ancestorCases[i][3])
 
 				getReq := GetBlocksByHeightReq{}
-				getReq.HeadBlockId = blockID
+				getReq.HeadBlockID = blockID
 				getReq.AncestorStartHeight = BlockHeightType(height)
 				getReq.NumBlocks = 1
 				getReq.ReturnBlockBlob = false
 				getReq.ReturnReceiptBlob = false
 
-				genericReq := BlockStoreReq{Value: getReq}
+				genericReq := BlockStoreReq{Value: &getReq}
 
-				json, err := genericReq.MarshalJSON()
+				json, err := json.Marshal(genericReq)
 				if err != nil {
 					t.Error("Could not marshal JSON", err)
 				}
@@ -300,7 +301,7 @@ func TestAddBlocks(t *testing.T) {
 					t.Errorf("Unexpected ancestor height:  Got %d, expected %d", resp.BlockItems[0].BlockHeight, height)
 				}
 
-				if !resp.BlockItems[0].BlockId.Equals(&expectedAncestorID) {
+				if !resp.BlockItems[0].BlockID.Equals(&expectedAncestorID) {
 					t.Error("Unexpected ancestor block ID")
 				}
 			}
@@ -311,20 +312,20 @@ func TestAddBlocks(t *testing.T) {
 
 func GetAddTransactionReq(n UInt64) AddTransactionReq {
 	vb := n.Serialize(types.NewVariableBlob())
-	m := Multihash{Id: 0x12, Digest: *vb}
-	r := types.AddTransactionReq{TransactionId: m, TransactionBlob: *vb}
+	m := Multihash{ID: 0x12, Digest: *vb}
+	r := types.AddTransactionReq{TransactionID: m, TransactionBlob: *vb}
 	return r
 }
 
-func GetGetTransactionsByIdReq(start uint64, num uint64) GetTransactionsByIdReq {
+func GetGetTransactionsByIDReq(start uint64, num uint64) GetTransactionsByIDReq {
 	vm := make([]Multihash, 0)
 	for i := UInt64(start); i < UInt64(start+num); i++ {
 		vb := i.Serialize(types.NewVariableBlob())
-		m := Multihash{Id: 0x12, Digest: *vb}
+		m := Multihash{ID: 0x12, Digest: *vb}
 		vm = append(vm, m)
 	}
 
-	r := types.GetTransactionsByIdReq{TransactionIds: vm}
+	r := types.GetTransactionsByIDReq{TransactionIds: vm}
 	return r
 }
 
@@ -378,7 +379,7 @@ func TestAddTransaction(t *testing.T) {
 		b := NewBackend(bType)
 		handler := RequestHandler{b}
 		for _, req := range reqs {
-			bsr := types.BlockStoreReq{Value: req}
+			bsr := types.BlockStoreReq{Value: &req}
 
 			result, err := handler.HandleRequest(&bsr)
 			if err != nil {
@@ -391,7 +392,7 @@ func TestAddTransaction(t *testing.T) {
 
 		// Test adding an already existing transaction
 		{
-			bsr := types.BlockStoreReq{Value: reqs[0]}
+			bsr := types.BlockStoreReq{Value: &reqs[0]}
 			result, err := handler.HandleRequest(&bsr)
 			if err != nil {
 				t.Error("Got error adding transaction:", err)
@@ -403,8 +404,8 @@ func TestAddTransaction(t *testing.T) {
 
 		// Test adding bad transaction
 		{
-			r := types.AddTransactionReq{TransactionId: reqs[0].TransactionId, TransactionBlob: nil}
-			bsr := types.BlockStoreReq{Value: r}
+			r := types.AddTransactionReq{TransactionID: reqs[0].TransactionID, TransactionBlob: nil}
+			bsr := types.BlockStoreReq{Value: &r}
 			_, err := handler.HandleRequest(&bsr)
 			if _, ok := err.(*NilTransaction); !ok {
 				t.Error("Nil transaction not returning correct error.")
@@ -415,7 +416,8 @@ func TestAddTransaction(t *testing.T) {
 
 		// Fetch the transactions
 		{
-			bsr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 32)}
+			r := GetGetTransactionsByIDReq(0, 32)
+			bsr := types.BlockStoreReq{Value: &r}
 			result, err := handler.HandleRequest(&bsr)
 			if err != nil {
 				t.Error("Error fetching transactions:", err)
@@ -424,7 +426,7 @@ func TestAddTransaction(t *testing.T) {
 				t.Error("Got nil result")
 			}
 
-			tres, ok := result.Value.(GetTransactionsByIdResp)
+			tres, ok := result.Value.(GetTransactionsByIDResp)
 			if !ok {
 				t.Error("Result is wrong type")
 			}
@@ -438,7 +440,8 @@ func TestAddTransaction(t *testing.T) {
 
 		// Test fetching an invalid transaction
 		{
-			bsr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(64, 1)}
+			r := GetGetTransactionsByIDReq(64, 1)
+			bsr := types.BlockStoreReq{Value: &r}
 			_, err := handler.HandleRequest(&bsr)
 			if _, ok := err.(*TransactionNotPresent); !ok {
 				t.Error("Did not recieve expected TransactionNotPresent error")
@@ -453,7 +456,8 @@ func TestAddTransaction(t *testing.T) {
 	// Test error on add
 	{
 		handler := RequestHandler{&TxnErrorBackend{}}
-		tr := types.BlockStoreReq{Value: GetAddTransactionReq(2)}
+		r := GetAddTransactionReq(2)
+		tr := types.BlockStoreReq{Value: &r}
 		_, err := handler.HandleRequest(&tr)
 		if err == nil {
 			t.Error("Should have errored on transaction add, but did not")
@@ -463,7 +467,8 @@ func TestAddTransaction(t *testing.T) {
 	// Test error on get
 	{
 		handler := RequestHandler{&TxnErrorBackend{}}
-		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
+		r := GetGetTransactionsByIDReq(0, 1)
+		tr := types.BlockStoreReq{Value: &r}
 		_, err := handler.HandleRequest(&tr)
 		if err == nil {
 			t.Error("Should have errored on transaction get, but did not")
@@ -473,7 +478,8 @@ func TestAddTransaction(t *testing.T) {
 	// Test bad record
 	{
 		handler := RequestHandler{&TxnBadBackend{}}
-		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
+		r := GetGetTransactionsByIDReq(0, 1)
+		tr := types.BlockStoreReq{Value: &r}
 		_, err := handler.HandleRequest(&tr)
 		if err == nil {
 			t.Error("Should have errored on transaction get, but did not")
@@ -483,7 +489,8 @@ func TestAddTransaction(t *testing.T) {
 	// Test too long record
 	{
 		handler := RequestHandler{&TxnLongBackend{}}
-		tr := types.BlockStoreReq{Value: GetGetTransactionsByIdReq(0, 1)}
+		r := GetGetTransactionsByIDReq(0, 1)
+		tr := types.BlockStoreReq{Value: &r}
 		_, err := handler.HandleRequest(&tr)
 		if err == nil {
 			t.Error("Should have errored on transaction get, but did not")

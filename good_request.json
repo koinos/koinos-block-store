@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","method":"block_store.get_blocks_by_id_req","id":100,"params":{"block_id":[{"Id":18,"Digest":"47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="}],"return_block_blob":false,"return_receipt_blob":false}}

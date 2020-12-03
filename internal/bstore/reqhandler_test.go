@@ -139,7 +139,7 @@ func TestGetPreviousHeights(t *testing.T) {
 	for i := 0; i < len(testCases); i++ {
 		x := testCases[i][0][0]
 		yRef := testCases[i][1]
-		yTest := GetPreviousHeights(x)
+		yTest := getPreviousHeights(x)
 
 		if !SliceEqual(yRef, yTest) {
 			t.Errorf("Testing %d, expected %v, got %v", x, yRef, yTest)
@@ -158,13 +158,13 @@ func GetBlockID(num uint64) Multihash {
 
 	var vb VariableBlob = VariableBlob(hash[:])
 
-	return Multihash{0x12, vb}
+	return Multihash{ID: 0x12, Digest: vb}
 	// return Multihash{ 0x12, data_bytes[:count] }
 }
 
 func GetEmptyBlockID() Multihash {
 	vb := VariableBlob(make([]byte, 32))
-	return Multihash{0x12, vb}
+	return Multihash{ID: 0x12, Digest: vb}
 }
 
 func GetBlockBody(num uint64) VariableBlob {
@@ -317,7 +317,7 @@ func GetAddTransactionReq(n UInt64) AddTransactionReq {
 	return r
 }
 
-func GetGetTransactionsByIdReq(start uint64, num uint64) GetTransactionsByIDReq {
+func GetGetTransactionsByIDReq(start uint64, num uint64) GetTransactionsByIDReq {
 	vm := make([]Multihash, 0)
 	for i := UInt64(start); i < UInt64(start+num); i++ {
 		vb := i.Serialize(types.NewVariableBlob())
@@ -416,7 +416,7 @@ func TestAddTransaction(t *testing.T) {
 
 		// Fetch the transactions
 		{
-			r := GetGetTransactionsByIdReq(0, 32)
+			r := GetGetTransactionsByIDReq(0, 32)
 			bsr := types.BlockStoreReq{Value: &r}
 			result, err := handler.HandleRequest(&bsr)
 			if err != nil {
@@ -440,7 +440,7 @@ func TestAddTransaction(t *testing.T) {
 
 		// Test fetching an invalid transaction
 		{
-			r := GetGetTransactionsByIdReq(64, 1)
+			r := GetGetTransactionsByIDReq(64, 1)
 			bsr := types.BlockStoreReq{Value: &r}
 			_, err := handler.HandleRequest(&bsr)
 			if _, ok := err.(*TransactionNotPresent); !ok {
@@ -467,7 +467,7 @@ func TestAddTransaction(t *testing.T) {
 	// Test error on get
 	{
 		handler := RequestHandler{&TxnErrorBackend{}}
-		r := GetGetTransactionsByIdReq(0, 1)
+		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreReq{Value: &r}
 		_, err := handler.HandleRequest(&tr)
 		if err == nil {
@@ -478,7 +478,7 @@ func TestAddTransaction(t *testing.T) {
 	// Test bad record
 	{
 		handler := RequestHandler{&TxnBadBackend{}}
-		r := GetGetTransactionsByIdReq(0, 1)
+		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreReq{Value: &r}
 		_, err := handler.HandleRequest(&tr)
 		if err == nil {
@@ -489,7 +489,7 @@ func TestAddTransaction(t *testing.T) {
 	// Test too long record
 	{
 		handler := RequestHandler{&TxnLongBackend{}}
-		r := GetGetTransactionsByIdReq(0, 1)
+		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreReq{Value: &r}
 		_, err := handler.HandleRequest(&tr)
 		if err == nil {

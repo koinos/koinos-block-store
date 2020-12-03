@@ -44,4 +44,4 @@ cp -p gen/koinos/pack/basetypes.go internal/types/basetypes.go
 cp -p gen/koinos/pack/koinos.go internal/types/koinos.go
 
 mkdir -p build
-go build -o build/koinos-block-store cmd/koinos-block-store/main.go
+go build -o build/koinos-block-store cmd/koinos-block-store/*.go

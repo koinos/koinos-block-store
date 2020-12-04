@@ -13,7 +13,8 @@ type StreamRPCHandler struct {
 	ReqHandler *bstore.RequestHandler
 }
 
-func runFileEndpoint(infile *os.File, outfile *os.File, handler *StreamRPCHandler) error {
+// ServeStream handles JSON RPC requests over streams
+func ServeStream(infile *os.File, outfile *os.File, handler *StreamRPCHandler) error {
 	scanner := bufio.NewScanner(infile)
 	for scanner.Scan() {
 		line := []byte(scanner.Text())

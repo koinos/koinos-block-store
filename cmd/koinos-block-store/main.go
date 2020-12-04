@@ -9,80 +9,104 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 )
 
+// Networks allows for multiple networks to be defined on the command line
+type Networks []string
+
+// String representation of Networks
+func (i *Networks) String() string {
+	return strings.Join(*i, ", ")
+}
+
+// Set method for Networks
+func (i *Networks) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
+
+// Addresses allows for multiple networks to be defined on the command line
+type Addresses []string
+
+// String representation of Addresses
+func (i *Addresses) String() string {
+	return strings.Join(*i, ", ")
+}
+
+// Set method for Addresses
+func (i *Addresses) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
+
 func main() {
-	directoryFlag := flag.String("d", "./db", "the database directory")
-	listenFlag := flag.String("l", "-", "Listen address (addr:port for TCP, unix:/path/to/flag for socket, - for stdin, comma-delimited for multiple)")
+	var networks Networks
+	var addresses Addresses
+	flag.Var(&networks, "n", "Set the network to listen on, multiple values are supported, valid options are (tcp, tcp4, tcp6, unix, unixpacket)")
+	flag.Var(&addresses, "a", "Set the server address to listen on, multiple values are supported, valid options are (0.0.0.0:8100, [::1]:8100)")
+
+	databaseDirectory := flag.String("d", "./db", "The database directory")
+	endpoint := flag.String("e", "/rpc", "Set the HTTP endpoint to listen on")
+	stdinFlag := flag.Bool("stdin", false, "Listen for requests on stdin")
 	flag.Parse()
 
-	opts := badger.DefaultOptions(*directoryFlag)
+	sync := &sync.WaitGroup{}
+
+	opts := badger.DefaultOptions(*databaseDirectory)
 	backend := bstore.NewBadgerBackend(opts)
 	defer backend.Close()
-
-	listens := strings.Split(*listenFlag, ",")
-
-	hasStdinListener := false
 
 	reqHandler := bstore.RequestHandler{}
 	httpHandler := HTTPRPCHandler{ReqHandler: &reqHandler}
 	stdinHandler := StreamRPCHandler{ReqHandler: &reqHandler}
 
 	httpMux := http.NewServeMux()
-	httpMux.Handle("/rpc", &httpHandler)
+	httpMux.Handle(*endpoint, &httpHandler)
 
 	runners := make([]func(), 0)
 
-	for i := 0; i < len(listens); i++ {
-		if listens[i] == "-" {
-			if hasStdinListener {
-				continue
+	if *stdinFlag {
+		log.Println("Listening for requests on stdin...")
+		sync.Add(1)
+		runners = append(runners, func() {
+			err := ServeStream(os.Stdin, os.Stdout, &stdinHandler)
+			if err != nil {
+				log.Printf("Listening on stdin has halted with error: %s", err.Error())
 			}
-			runners = append(runners, func() { runFileEndpoint(os.Stdin, os.Stdout, &stdinHandler) })
-			hasStdinListener = true
-			log.Printf("Added stdin logger\n")
-			continue
-		}
+			sync.Done()
+		})
+	}
 
-		split := strings.SplitN(listens[i], ":", 2)
-		if len(split) != 2 {
-			log.Fatal("Could not parse listen specifier")
-		}
+	if len(addresses) != len(networks) {
+		log.Fatalf("Number of networks (%d) do not match the number of addresses (%d)\n", len(networks), len(addresses))
+	}
 
-		var network string
-		var addr string
-
-		if (split[0] == "unix") || (split[0] == "tcp4") || (split[0] == "tcp6") {
-			// See https://gist.github.com/teknoraver/5ffacb8757330715bcbcc90e6d46ac74 for more on Unix sockets in Golang
-			network = split[0]
-			addr = split[1]
-		} else if split[0] == "" {
-			network = "tcp4"
-			addr = "127.0.0.1:" + split[1]
-		} else {
-			log.Fatal("Could not parse listen specifier ", listens[i])
-		}
-
-		log.Printf("Parsed network %s address %s\n", network, addr)
-
+	for i := 0; i < len(networks); i++ {
 		httpServer := http.Server{
-			Addr:    listens[i],
+			Addr:    addresses[i],
 			Handler: httpMux,
 		}
-		netListener, err := net.Listen(network, addr)
+
+		netListener, err := net.Listen(networks[i], addresses[i])
 		if err != nil {
 			panic(err)
 		}
 
+		sync.Add(1)
 		runners = append(runners, func() {
-			log.Fatal(httpServer.Serve(netListener))
+			err := httpServer.Serve(netListener)
+			if err != nil {
+				log.Printf("Listening on network %s at %s has halted with error: %s", networks[i], addresses[i], err.Error())
+			}
+			sync.Done()
 		})
+		log.Printf("Listening to %s network on %s\n", networks[i], addresses[i])
 	}
 
-	log.Printf("Running %d loggers\n", len(runners))
-
-	for i := 1; i < len(runners); i++ {
-		go runners[i]()
+	for _, run := range runners {
+		go run()
 	}
-	runners[0]()
+
+	sync.Wait()
 }

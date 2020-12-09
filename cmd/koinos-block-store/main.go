@@ -10,7 +10,7 @@ import (
 
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
-	types "github.com/koinos/koinos-block-store/internal/types"
+	types "github.com/koinos/koinos-types-golang"
 )
 
 // Send block to store

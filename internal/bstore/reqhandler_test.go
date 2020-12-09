@@ -13,8 +13,7 @@ import (
 
 	"github.com/dgraph-io/badger"
 
-	. "github.com/koinos/koinos-block-store/internal/types"
-	types "github.com/koinos/koinos-block-store/internal/types"
+	types "github.com/koinos/koinos-types-golang"
 )
 
 const (
@@ -61,7 +60,7 @@ func TestHandleReservedRequest(t *testing.T) {
 		b := NewBackend(bType)
 		handler := RequestHandler{b}
 
-		testReq := BlockStoreReq{Value: NewReservedReq()}
+		testReq := types.BlockStoreReq{Value: types.NewReservedReq()}
 		result, err := handler.HandleRequest(&testReq)
 		if result != nil {
 			t.Error("Result should be nil")
@@ -85,7 +84,7 @@ func TestHandleUnknownRequestType(t *testing.T) {
 		b := NewBackend(bType)
 		handler := RequestHandler{b}
 
-		testReq := BlockStoreReq{Value: UnknownReq{}}
+		testReq := types.BlockStoreReq{Value: UnknownReq{}}
 		result, err := handler.HandleRequest(&testReq)
 		if result != nil {
 			t.Error("Result should be nil")
@@ -147,7 +146,7 @@ func TestGetPreviousHeights(t *testing.T) {
 	}
 }
 
-func GetBlockID(num uint64) Multihash {
+func GetBlockID(num uint64) types.Multihash {
 	if num == 0 {
 		return GetEmptyBlockID()
 	}
@@ -156,18 +155,18 @@ func GetBlockID(num uint64) Multihash {
 
 	hash := sha256.Sum256(dataBytes[:count])
 
-	var vb VariableBlob = VariableBlob(hash[:])
+	var vb types.VariableBlob = types.VariableBlob(hash[:])
 
-	return Multihash{ID: 0x12, Digest: vb}
+	return types.Multihash{ID: 0x12, Digest: vb}
 	// return Multihash{ 0x12, data_bytes[:count] }
 }
 
-func GetEmptyBlockID() Multihash {
-	vb := VariableBlob(make([]byte, 32))
-	return Multihash{ID: 0x12, Digest: vb}
+func GetEmptyBlockID() types.Multihash {
+	vb := types.VariableBlob(make([]byte, 32))
+	return types.Multihash{ID: 0x12, Digest: vb}
 }
 
-func GetBlockBody(num uint64) VariableBlob {
+func GetBlockBody(num uint64) types.VariableBlob {
 	greetings := []string{
 		"Hello this is block %d.",
 		"Greetings from block %d.",
@@ -200,14 +199,14 @@ func TestAddBlocks(t *testing.T) {
 				parentID := GetBlockID(tree[i][j-1])
 
 				// fmt.Printf("Block %d has ID %v\n", tree[i][j], hex.EncodeToString( block_id.Digest ) );
-				addReq := AddBlockReq{}
+				addReq := types.AddBlockReq{}
 				addReq.BlockToAdd.BlockID = blockID
 				addReq.PreviousBlockID = parentID
-				addReq.BlockToAdd.BlockHeight = BlockHeightType(tree[i][j] % 100)
+				addReq.BlockToAdd.BlockHeight = types.BlockHeightType(tree[i][j] % 100)
 				addReq.BlockToAdd.BlockBlob = GetBlockBody(tree[i][j])
-				addReq.BlockToAdd.BlockReceiptBlob = VariableBlob(make([]byte, 0))
+				addReq.BlockToAdd.BlockReceiptBlob = types.VariableBlob(make([]byte, 0))
 
-				genericReq := BlockStoreReq{Value: &addReq}
+				genericReq := types.BlockStoreReq{Value: &addReq}
 
 				json, err := json.Marshal(genericReq)
 				if err != nil {
@@ -269,14 +268,14 @@ func TestAddBlocks(t *testing.T) {
 				height := ancestorCases[i][2]
 				expectedAncestorID := GetBlockID(ancestorCases[i][3])
 
-				getReq := GetBlocksByHeightReq{}
+				getReq := types.GetBlocksByHeightReq{}
 				getReq.HeadBlockID = blockID
-				getReq.AncestorStartHeight = BlockHeightType(height)
+				getReq.AncestorStartHeight = types.BlockHeightType(height)
 				getReq.NumBlocks = 1
 				getReq.ReturnBlockBlob = false
 				getReq.ReturnReceiptBlob = false
 
-				genericReq := BlockStoreReq{Value: &getReq}
+				genericReq := types.BlockStoreReq{Value: &getReq}
 
 				json, err := json.Marshal(genericReq)
 				if err != nil {
@@ -292,12 +291,12 @@ func TestAddBlocks(t *testing.T) {
 					t.Error("Got nil result")
 				}
 
-				resp := result.Value.(GetBlocksByHeightResp)
+				resp := result.Value.(types.GetBlocksByHeightResp)
 				if len(resp.BlockItems) != 1 {
 					t.Error("Expected result of length 1")
 				}
 
-				if resp.BlockItems[0].BlockHeight != BlockHeightType(height) {
+				if resp.BlockItems[0].BlockHeight != types.BlockHeightType(height) {
 					t.Errorf("Unexpected ancestor height:  Got %d, expected %d", resp.BlockItems[0].BlockHeight, height)
 				}
 
@@ -310,18 +309,18 @@ func TestAddBlocks(t *testing.T) {
 	}
 }
 
-func GetAddTransactionReq(n UInt64) AddTransactionReq {
+func GetAddTransactionReq(n types.UInt64) types.AddTransactionReq {
 	vb := n.Serialize(types.NewVariableBlob())
-	m := Multihash{ID: 0x12, Digest: *vb}
+	m := types.Multihash{ID: 0x12, Digest: *vb}
 	r := types.AddTransactionReq{TransactionID: m, TransactionBlob: *vb}
 	return r
 }
 
-func GetGetTransactionsByIDReq(start uint64, num uint64) GetTransactionsByIDReq {
-	vm := make([]Multihash, 0)
-	for i := UInt64(start); i < UInt64(start+num); i++ {
+func GetGetTransactionsByIDReq(start uint64, num uint64) types.GetTransactionsByIDReq {
+	vm := make([]types.Multihash, 0)
+	for i := types.UInt64(start); i < types.UInt64(start+num); i++ {
 		vb := i.Serialize(types.NewVariableBlob())
-		m := Multihash{ID: 0x12, Digest: *vb}
+		m := types.Multihash{ID: 0x12, Digest: *vb}
 		vm = append(vm, m)
 	}
 
@@ -371,7 +370,7 @@ func (backend *TxnLongBackend) Get(key []byte) ([]byte, error) {
 func TestAddTransaction(t *testing.T) {
 	reqs := make([]types.AddTransactionReq, 32)
 	for i := 0; i < 32; i++ {
-		reqs[i] = GetAddTransactionReq(UInt64(i))
+		reqs[i] = GetAddTransactionReq(types.UInt64(i))
 	}
 
 	// Add the transactions
@@ -426,7 +425,7 @@ func TestAddTransaction(t *testing.T) {
 				t.Error("Got nil result")
 			}
 
-			tres, ok := result.Value.(GetTransactionsByIDResp)
+			tres, ok := result.Value.(types.GetTransactionsByIDResp)
 			if !ok {
 				t.Error("Result is wrong type")
 			}

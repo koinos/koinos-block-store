@@ -4,6 +4,7 @@ import (
 	"flag"
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
+	types "github.com/koinos/koinos-types-golang"
 	"log"
 	"net"
 	"net/http"

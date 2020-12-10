@@ -72,6 +72,10 @@ func TestHandleReservedRequest(t *testing.T) {
 		if _, ok := err.(*ReservedReqError); !ok {
 			t.Error("Err should be ReservedReqError")
 		}
+
+		if err.Error() != "Reserved request is not supported" {
+			t.Error("Unexpected error text")
+		}
 		CloseBackend(b)
 	}
 }
@@ -95,6 +99,9 @@ func TestHandleUnknownRequestType(t *testing.T) {
 
 		if _, ok := err.(*UnknownReqError); !ok {
 			t.Error("Err should be UnknownReqError")
+		}
+		if err.Error() != "Unknown request type" {
+			t.Error("Unexpected error text")
 		}
 		CloseBackend(b)
 	}
@@ -192,6 +199,8 @@ func TestAddBlocks(t *testing.T) {
 			{714, 815, 816, 817, 818, 819},
 		}
 
+		nonExistentBlockID := GetBlockID(999)
+
 		handler := RequestHandler{b}
 		for i := 0; i < len(tree); i++ {
 			for j := 1; j < len(tree[i]); j++ {
@@ -208,11 +217,11 @@ func TestAddBlocks(t *testing.T) {
 
 				genericReq := types.BlockStoreReq{Value: &addReq}
 
-				json, err := json.Marshal(genericReq)
+				jsonReq, err := json.Marshal(genericReq)
 				if err != nil {
 					t.Error("Could not marshal JSON", err)
 				}
-				fmt.Printf("%s\n", string(json))
+				fmt.Printf("%s\n", string(jsonReq))
 
 				result, err := handler.HandleRequest(&genericReq)
 				if err != nil {
@@ -220,6 +229,31 @@ func TestAddBlocks(t *testing.T) {
 				}
 				if result == nil {
 					t.Error("Got nil result")
+				}
+
+				getNeReq := types.GetBlocksByHeightReq{}
+				getNeReq.HeadBlockID = nonExistentBlockID
+				getNeReq.AncestorStartHeight = types.BlockHeightType(j - 1)
+				getNeReq.NumBlocks = 1
+				getNeReq.ReturnBlockBlob = false
+				getNeReq.ReturnReceiptBlob = false
+
+				genericNeReq := types.BlockStoreReq{Value: &getNeReq}
+				jsonReq, err = json.Marshal(genericNeReq)
+				if err != nil {
+					t.Error("Could not marshal JSON", err)
+				}
+
+				result, err = handler.HandleRequest(&genericNeReq)
+				if (result != nil) || (err == nil) {
+					t.Error("Expected error adding block")
+				} else {
+					if _, ok := err.(*BlockNotPresent); !ok {
+						t.Error("Err should be BlockNotPresent")
+					}
+					if err.Error() != "Block was not present" {
+						t.Error("Unexpected error text")
+					}
 				}
 			}
 		}
@@ -494,5 +528,12 @@ func TestAddTransaction(t *testing.T) {
 		if err == nil {
 			t.Error("Should have errored on transaction get, but did not")
 		}
+	}
+}
+
+func TestInternalError(t *testing.T) {
+	err := InternalError{}
+	if err.Error() != "Internal constraint was violated" {
+		t.Error("Unexpected error text")
 	}
 }

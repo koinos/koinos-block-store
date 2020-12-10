@@ -37,7 +37,7 @@ func (e *InternalError) Error() string {
 	return "Internal constraint was violated"
 }
 
-// BlockNotPresent is an error type thrown when asking for a transaction that is not contained in the blockstore
+// BlockNotPresent is an error type thrown when asking for a block that is not contained in the blockstore
 type BlockNotPresent struct {
 }
 
@@ -185,7 +185,7 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 		if err != nil {
 			return nil, err
 		}
-		if recordBytes == nil {
+		if len(recordBytes) == 0 {
 			fmt.Println("Block not present, key is", hex.EncodeToString(blockID.Digest))
 			return nil, &BlockNotPresent{}
 		}

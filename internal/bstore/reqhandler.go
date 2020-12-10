@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/bits"
 
-	types "github.com/koinos/koinos-block-store/internal/types"
+	types "github.com/koinos/koinos-types-golang"
 )
 
 // RequestHandler contains a backend object and handles requests

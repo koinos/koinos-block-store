@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/koinos/koinos-block-store/internal/bstore"
-	"github.com/koinos/koinos-block-store/internal/types"
+	types "github.com/koinos/koinos-types-golang"
 	"log"
 	"strings"
 )
@@ -98,7 +98,7 @@ func errorWithID(e error) bool {
 	}
 	return true
 }
-func translateRequest(j *JSONRPCGenericRequest) (*koinos.BlockStoreReq, error) {
+func translateRequest(j *JSONRPCGenericRequest) (*types.BlockStoreReq, error) {
 	methodData := strings.SplitN(j.Method, MethodSeparator, MethodSections)
 	if len(methodData) != MethodSections {
 		return nil, ErrMalformedMethod
@@ -108,7 +108,7 @@ func translateRequest(j *JSONRPCGenericRequest) (*koinos.BlockStoreReq, error) {
 	}
 	variantBytes := []byte(`{"type":"koinos::types::` + methodData[0] + `::` + methodData[1] + `","value":` + string(j.Params) + `}`)
 
-	var req koinos.BlockStoreReq
+	var req types.BlockStoreReq
 	err := json.Unmarshal(variantBytes, &req)
 	return &req, err
 }

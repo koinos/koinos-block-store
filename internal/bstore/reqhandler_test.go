@@ -228,11 +228,10 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 
 			genericReq := types.BlockStoreReq{Value: &addReq}
 
-			jsonReq, err := json.Marshal(genericReq)
+			_, err := json.Marshal(genericReq)
 			if err != nil {
 				t.Error("Could not marshal JSON", err)
 			}
-			fmt.Printf("%s\n", string(jsonReq))
 
 			result, err := handler.HandleRequest(&genericReq)
 			if err != nil {
@@ -250,7 +249,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			getNeReq.ReturnReceiptBlob = false
 
 			genericNeReq := types.BlockStoreReq{Value: &getNeReq}
-			jsonReq, err = json.Marshal(genericNeReq)
+			_, err = json.Marshal(genericNeReq)
 			if err != nil {
 				t.Error("Could not marshal JSON", err)
 			}
@@ -323,11 +322,10 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 
 			genericReq := types.BlockStoreReq{Value: &getReq}
 
-			json, err := json.Marshal(genericReq)
+			_, err := json.Marshal(genericReq)
 			if err != nil {
 				t.Error("Could not marshal JSON", err)
 			}
-			fmt.Printf("%s\n", string(json))
 
 			result, err := handler.HandleRequest(&genericReq)
 			if err != nil {

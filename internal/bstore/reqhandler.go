@@ -186,7 +186,6 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 			return nil, err
 		}
 		if len(recordBytes) == 0 {
-			fmt.Println("Block not present, key is", hex.EncodeToString(blockID.Digest))
 			return nil, &BlockNotPresent{}
 		}
 

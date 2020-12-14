@@ -230,15 +230,6 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 	}
 }
 
-func multihashIsZero(mh *types.Multihash) bool {
-	for i := 0; i < len(mh.Digest); i++ {
-		if mh.Digest[i] != 0 {
-			return false
-		}
-	}
-	return true
-}
-
 func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types.AddBlockResp, error) {
 
 	record := types.BlockRecord{}

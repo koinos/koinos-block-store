@@ -154,9 +154,6 @@ func TestGetPreviousHeights(t *testing.T) {
 }
 
 func GetBlockID(num uint64) types.Multihash {
-	if num == 0 {
-		return GetEmptyBlockID()
-	}
 	dataBytes := make([]byte, binary.MaxVarintLen64)
 	count := binary.PutUvarint(dataBytes, num)
 
@@ -165,7 +162,6 @@ func GetBlockID(num uint64) types.Multihash {
 	var vb types.VariableBlob = types.VariableBlob(hash[:])
 
 	return types.Multihash{ID: 0x12, Digest: vb}
-	// return Multihash{ 0x12, data_bytes[:count] }
 }
 
 func GetEmptyBlockID() types.Multihash {
@@ -183,194 +179,215 @@ func GetBlockBody(num uint64) types.VariableBlob {
 	return []byte(fmt.Sprintf(greetings[int(num)%len(greetings)], num))
 }
 
-func TestAddBlocks(t *testing.T) {
-	for bType := range backendTypes {
-		b := NewBackend(bType)
+func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
+	b := NewBackend(backendType)
+	handler := RequestHandler{b}
 
-		// A compact notation of the tree of forks we want to create for the test
-		tree := [][]uint64{
-			{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
-			{103, 204, 205, 206, 207, 208, 209, 210, 211},
-			{103, 304, 305, 306, 307},
-			{106, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419},
-			{109, 510, 511},
-			{112, 613, 614},
-			{411, 712, 713, 714, 715, 716, 717, 718},
-			{714, 815, 816, 817, 818, 819},
+	if addZeroBlock {
+		addReq := types.AddBlockReq{}
+		addReq.BlockToAdd.BlockID = GetBlockID(0)
+		addReq.PreviousBlockID = GetEmptyBlockID()
+		addReq.BlockToAdd.BlockHeight = 0
+		addReq.BlockToAdd.BlockBlob = GetBlockBody(0)
+		addReq.BlockToAdd.BlockReceiptBlob = types.VariableBlob(make([]byte, 0))
+
+		genericReq := types.BlockStoreReq{Value: &addReq}
+
+		_, err := handler.HandleRequest(&genericReq)
+		if err != nil {
+			t.Error("Could not add block 0", err)
 		}
+	}
 
-		nonExistentBlockID := GetBlockID(999)
+	// A compact notation of the tree of forks we want to create for the test
+	tree := [][]uint64{
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
+		{103, 204, 205, 206, 207, 208, 209, 210, 211},
+		{103, 304, 305, 306, 307},
+		{106, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419},
+		{109, 510, 511},
+		{112, 613, 614},
+		{411, 712, 713, 714, 715, 716, 717, 718},
+		{714, 815, 816, 817, 818, 819},
+	}
 
-		handler := RequestHandler{b}
-		for i := 0; i < len(tree); i++ {
-			for j := 1; j < len(tree[i]); j++ {
-				blockID := GetBlockID(tree[i][j])
-				parentID := GetBlockID(tree[i][j-1])
+	nonExistentBlockID := GetBlockID(999)
 
-				// fmt.Printf("Block %d has ID %v\n", tree[i][j], hex.EncodeToString( block_id.Digest ) );
-				addReq := types.AddBlockReq{}
-				addReq.BlockToAdd.BlockID = blockID
-				addReq.PreviousBlockID = parentID
-				addReq.BlockToAdd.BlockHeight = types.BlockHeightType(tree[i][j] % 100)
-				addReq.BlockToAdd.BlockBlob = GetBlockBody(tree[i][j])
-				addReq.BlockToAdd.BlockReceiptBlob = types.VariableBlob(make([]byte, 0))
+	for i := 0; i < len(tree); i++ {
+		for j := 1; j < len(tree[i]); j++ {
+			blockID := GetBlockID(tree[i][j])
+			parentID := GetBlockID(tree[i][j-1])
 
-				genericReq := types.BlockStoreReq{Value: &addReq}
+			// fmt.Printf("Block %d has ID %v\n", tree[i][j], hex.EncodeToString( block_id.Digest ) );
+			addReq := types.AddBlockReq{}
+			addReq.BlockToAdd.BlockID = blockID
+			addReq.PreviousBlockID = parentID
+			addReq.BlockToAdd.BlockHeight = types.BlockHeightType(tree[i][j] % 100)
+			addReq.BlockToAdd.BlockBlob = GetBlockBody(tree[i][j])
+			addReq.BlockToAdd.BlockReceiptBlob = types.VariableBlob(make([]byte, 0))
 
-				jsonReq, err := json.Marshal(genericReq)
-				if err != nil {
-					t.Error("Could not marshal JSON", err)
-				}
-				fmt.Printf("%s\n", string(jsonReq))
+			genericReq := types.BlockStoreReq{Value: &addReq}
 
-				result, err := handler.HandleRequest(&genericReq)
-				if err != nil {
-					t.Error("Got error adding block:", err)
-				}
-				if result == nil {
-					t.Error("Got nil result")
-				}
-
-				getNeReq := types.GetBlocksByHeightReq{}
-				getNeReq.HeadBlockID = nonExistentBlockID
-				getNeReq.AncestorStartHeight = types.BlockHeightType(j - 1)
-				getNeReq.NumBlocks = 1
-				getNeReq.ReturnBlockBlob = false
-				getNeReq.ReturnReceiptBlob = false
-
-				genericNeReq := types.BlockStoreReq{Value: &getNeReq}
-				jsonReq, err = json.Marshal(genericNeReq)
-				if err != nil {
-					t.Error("Could not marshal JSON", err)
-				}
-
-				result, err = handler.HandleRequest(&genericNeReq)
-				if (result != nil) || (err == nil) {
-					t.Error("Expected error adding block")
-				} else {
-					if _, ok := err.(*BlockNotPresent); !ok {
-						t.Error("Err should be BlockNotPresent")
-					}
-					if err.Error() != "Block was not present" {
-						t.Error("Unexpected error text")
-					}
-				}
+			jsonReq, err := json.Marshal(genericReq)
+			if err != nil {
+				t.Error("Could not marshal JSON", err)
 			}
-		}
+			fmt.Printf("%s\n", string(jsonReq))
 
-		// Item {105, 120, 4, 104} means for blocks 105-120, the ancestor at height 4 is block 104.
-		ancestorCases := [][]uint64{
-			{101, 120, 1, 101}, {102, 120, 2, 102}, {103, 120, 3, 103}, {104, 120, 4, 104},
-			{105, 120, 5, 105}, {106, 120, 6, 106}, {107, 120, 7, 107}, {108, 120, 8, 108}, {109, 120, 9, 109},
-			{110, 120, 10, 110}, {111, 120, 11, 111}, {112, 120, 12, 112}, {113, 120, 13, 113}, {114, 120, 14, 114},
-			{115, 120, 15, 115}, {116, 120, 16, 116}, {117, 120, 17, 117}, {118, 120, 18, 118}, {119, 120, 19, 119},
-			{120, 120, 20, 120},
-
-			{204, 211, 1, 101}, {204, 211, 2, 102}, {204, 211, 3, 103}, {204, 211, 4, 204},
-			{205, 211, 5, 205}, {206, 211, 6, 206}, {207, 211, 7, 207}, {208, 211, 8, 208}, {209, 211, 9, 209},
-			{210, 211, 10, 210}, {211, 211, 11, 211},
-
-			{304, 307, 1, 101}, {304, 307, 2, 102}, {304, 307, 3, 103}, {304, 307, 4, 304},
-			{305, 307, 5, 305}, {306, 307, 6, 306}, {307, 307, 7, 307},
-
-			{407, 419, 1, 101}, {407, 419, 2, 102}, {407, 419, 3, 103}, {407, 419, 4, 104},
-			{407, 419, 5, 105}, {407, 419, 6, 106}, {407, 419, 7, 407}, {408, 419, 8, 408}, {409, 419, 9, 409},
-			{410, 419, 10, 410}, {411, 419, 11, 411}, {412, 419, 12, 412}, {413, 419, 13, 413}, {414, 419, 14, 414},
-			{415, 419, 15, 415}, {416, 419, 16, 416}, {417, 419, 17, 417}, {418, 419, 18, 418}, {419, 419, 19, 419},
-
-			{510, 511, 1, 101}, {510, 511, 2, 102}, {510, 511, 3, 103}, {510, 511, 4, 104},
-			{510, 511, 5, 105}, {510, 511, 6, 106}, {510, 511, 7, 107}, {510, 511, 8, 108}, {510, 511, 9, 109},
-			{510, 511, 10, 510}, {511, 511, 11, 511},
-
-			{613, 614, 1, 101}, {613, 614, 2, 102}, {613, 614, 3, 103}, {613, 614, 4, 104},
-			{613, 614, 5, 105}, {613, 614, 6, 106}, {613, 614, 7, 107}, {613, 614, 8, 108}, {613, 614, 9, 109},
-			{613, 614, 10, 110}, {613, 614, 11, 111}, {613, 614, 12, 112}, {613, 614, 13, 613}, {614, 614, 14, 614},
-
-			{712, 718, 1, 101}, {712, 718, 2, 102}, {712, 718, 3, 103}, {712, 718, 4, 104},
-			{712, 718, 5, 105}, {712, 718, 6, 106}, {712, 718, 7, 407}, {712, 718, 8, 408}, {712, 718, 9, 409},
-			{712, 718, 10, 410}, {712, 718, 11, 411}, {712, 718, 12, 712}, {713, 718, 13, 713}, {714, 718, 14, 714},
-			{715, 718, 15, 715}, {716, 718, 16, 716}, {717, 718, 17, 717}, {718, 718, 18, 718},
-
-			{815, 819, 1, 101}, {815, 819, 2, 102}, {815, 819, 3, 103}, {815, 819, 4, 104},
-			{815, 819, 5, 105}, {815, 819, 6, 106}, {815, 819, 7, 407}, {815, 819, 8, 408}, {815, 819, 9, 409},
-			{815, 819, 10, 410}, {815, 819, 11, 411}, {815, 819, 12, 712}, {815, 819, 13, 713}, {815, 819, 14, 714},
-			{815, 819, 15, 815}, {816, 819, 16, 816}, {817, 819, 17, 817}, {818, 819, 18, 818}, {819, 819, 19, 819},
-		}
-
-		for i := 0; i < len(ancestorCases); i++ {
-			for b := ancestorCases[i][0]; b <= ancestorCases[i][1]; b++ {
-				blockID := GetBlockID(b)
-				height := ancestorCases[i][2]
-				expectedAncestorID := GetBlockID(ancestorCases[i][3])
-
-				getReq := types.GetBlocksByHeightReq{}
-				getReq.HeadBlockID = blockID
-				getReq.AncestorStartHeight = types.BlockHeightType(height)
-				getReq.NumBlocks = 1
-				getReq.ReturnBlockBlob = false
-				getReq.ReturnReceiptBlob = false
-
-				genericReq := types.BlockStoreReq{Value: &getReq}
-
-				json, err := json.Marshal(genericReq)
-				if err != nil {
-					t.Error("Could not marshal JSON", err)
-				}
-				fmt.Printf("%s\n", string(json))
-
-				result, err := handler.HandleRequest(&genericReq)
-				if err != nil {
-					t.Error("Got error retrieving block:", err)
-				}
-				if result == nil {
-					t.Error("Got nil result")
-				}
-
-				resp := result.Value.(types.GetBlocksByHeightResp)
-				if len(resp.BlockItems) != 1 {
-					t.Error("Expected result of length 1")
-				}
-
-				if resp.BlockItems[0].BlockHeight != types.BlockHeightType(height) {
-					t.Errorf("Unexpected ancestor height:  Got %d, expected %d", resp.BlockItems[0].BlockHeight, height)
-				}
-
-				if !resp.BlockItems[0].BlockID.Equals(&expectedAncestorID) {
-					t.Error("Unexpected ancestor block ID")
-				}
+			result, err := handler.HandleRequest(&genericReq)
+			if err != nil {
+				t.Error("Got error adding block:", err)
 			}
-		}
+			if result == nil {
+				t.Error("Got nil result")
+			}
 
-		for i := 0; i < len(tree); i++ {
-			for j := 1; j < len(tree[i]); j++ {
-				blockID := GetBlockID(tree[i][j])
-				height := tree[i][j] % 100
+			getNeReq := types.GetBlocksByHeightReq{}
+			getNeReq.HeadBlockID = nonExistentBlockID
+			getNeReq.AncestorStartHeight = types.BlockHeightType(j - 1)
+			getNeReq.NumBlocks = 1
+			getNeReq.ReturnBlockBlob = false
+			getNeReq.ReturnReceiptBlob = false
 
-				getReq := types.GetBlocksByHeightReq{}
-				getReq.HeadBlockID = blockID
-				getReq.NumBlocks = 1
-				getReq.ReturnBlockBlob = false
-				getReq.ReturnReceiptBlob = false
+			genericNeReq := types.BlockStoreReq{Value: &getNeReq}
+			jsonReq, err = json.Marshal(genericNeReq)
+			if err != nil {
+				t.Error("Could not marshal JSON", err)
+			}
 
-				// GetAncestorAtHeight where the requested height is equal to the height of the requested head
-				getReq.AncestorStartHeight = types.BlockHeightType(height + 1)
-
-				genericReq := types.BlockStoreReq{Value: &getReq}
-
-				result, err := handler.HandleRequest(&genericReq)
-				if err == nil {
-					t.Error("Unexpectedly got non-error result attempting to retrieve descendant block:", result)
+			result, err = handler.HandleRequest(&genericNeReq)
+			if (result != nil) || (err == nil) {
+				t.Error("Expected error adding block")
+			} else {
+				if _, ok := err.(*BlockNotPresent); !ok {
+					t.Error("Err should be BlockNotPresent")
 				}
-				if _, ok := err.(*BlockHeightMismatch); !ok {
-					t.Error("Err should be BlockHeightMismatch")
-				}
-				if err.Error() != "Block height mismatch" {
+				if err.Error() != "Block was not present" {
 					t.Error("Unexpected error text")
 				}
 			}
 		}
+	}
 
-		CloseBackend(b)
+	// Item {105, 120, 4, 104} means for blocks 105-120, the ancestor at height 4 is block 104.
+	ancestorCases := [][]uint64{
+		{101, 120, 1, 101}, {102, 120, 2, 102}, {103, 120, 3, 103}, {104, 120, 4, 104},
+		{105, 120, 5, 105}, {106, 120, 6, 106}, {107, 120, 7, 107}, {108, 120, 8, 108}, {109, 120, 9, 109},
+		{110, 120, 10, 110}, {111, 120, 11, 111}, {112, 120, 12, 112}, {113, 120, 13, 113}, {114, 120, 14, 114},
+		{115, 120, 15, 115}, {116, 120, 16, 116}, {117, 120, 17, 117}, {118, 120, 18, 118}, {119, 120, 19, 119},
+		{120, 120, 20, 120},
+
+		{204, 211, 1, 101}, {204, 211, 2, 102}, {204, 211, 3, 103}, {204, 211, 4, 204},
+		{205, 211, 5, 205}, {206, 211, 6, 206}, {207, 211, 7, 207}, {208, 211, 8, 208}, {209, 211, 9, 209},
+		{210, 211, 10, 210}, {211, 211, 11, 211},
+
+		{304, 307, 1, 101}, {304, 307, 2, 102}, {304, 307, 3, 103}, {304, 307, 4, 304},
+		{305, 307, 5, 305}, {306, 307, 6, 306}, {307, 307, 7, 307},
+
+		{407, 419, 1, 101}, {407, 419, 2, 102}, {407, 419, 3, 103}, {407, 419, 4, 104},
+		{407, 419, 5, 105}, {407, 419, 6, 106}, {407, 419, 7, 407}, {408, 419, 8, 408}, {409, 419, 9, 409},
+		{410, 419, 10, 410}, {411, 419, 11, 411}, {412, 419, 12, 412}, {413, 419, 13, 413}, {414, 419, 14, 414},
+		{415, 419, 15, 415}, {416, 419, 16, 416}, {417, 419, 17, 417}, {418, 419, 18, 418}, {419, 419, 19, 419},
+
+		{510, 511, 1, 101}, {510, 511, 2, 102}, {510, 511, 3, 103}, {510, 511, 4, 104},
+		{510, 511, 5, 105}, {510, 511, 6, 106}, {510, 511, 7, 107}, {510, 511, 8, 108}, {510, 511, 9, 109},
+		{510, 511, 10, 510}, {511, 511, 11, 511},
+
+		{613, 614, 1, 101}, {613, 614, 2, 102}, {613, 614, 3, 103}, {613, 614, 4, 104},
+		{613, 614, 5, 105}, {613, 614, 6, 106}, {613, 614, 7, 107}, {613, 614, 8, 108}, {613, 614, 9, 109},
+		{613, 614, 10, 110}, {613, 614, 11, 111}, {613, 614, 12, 112}, {613, 614, 13, 613}, {614, 614, 14, 614},
+
+		{712, 718, 1, 101}, {712, 718, 2, 102}, {712, 718, 3, 103}, {712, 718, 4, 104},
+		{712, 718, 5, 105}, {712, 718, 6, 106}, {712, 718, 7, 407}, {712, 718, 8, 408}, {712, 718, 9, 409},
+		{712, 718, 10, 410}, {712, 718, 11, 411}, {712, 718, 12, 712}, {713, 718, 13, 713}, {714, 718, 14, 714},
+		{715, 718, 15, 715}, {716, 718, 16, 716}, {717, 718, 17, 717}, {718, 718, 18, 718},
+
+		{815, 819, 1, 101}, {815, 819, 2, 102}, {815, 819, 3, 103}, {815, 819, 4, 104},
+		{815, 819, 5, 105}, {815, 819, 6, 106}, {815, 819, 7, 407}, {815, 819, 8, 408}, {815, 819, 9, 409},
+		{815, 819, 10, 410}, {815, 819, 11, 411}, {815, 819, 12, 712}, {815, 819, 13, 713}, {815, 819, 14, 714},
+		{815, 819, 15, 815}, {816, 819, 16, 816}, {817, 819, 17, 817}, {818, 819, 18, 818}, {819, 819, 19, 819},
+	}
+
+	for i := 0; i < len(ancestorCases); i++ {
+		for b := ancestorCases[i][0]; b <= ancestorCases[i][1]; b++ {
+			blockID := GetBlockID(b)
+			height := ancestorCases[i][2]
+			expectedAncestorID := GetBlockID(ancestorCases[i][3])
+
+			getReq := types.GetBlocksByHeightReq{}
+			getReq.HeadBlockID = blockID
+			getReq.AncestorStartHeight = types.BlockHeightType(height)
+			getReq.NumBlocks = 1
+			getReq.ReturnBlockBlob = false
+			getReq.ReturnReceiptBlob = false
+
+			genericReq := types.BlockStoreReq{Value: &getReq}
+
+			json, err := json.Marshal(genericReq)
+			if err != nil {
+				t.Error("Could not marshal JSON", err)
+			}
+			fmt.Printf("%s\n", string(json))
+
+			result, err := handler.HandleRequest(&genericReq)
+			if err != nil {
+				t.Error("Got error retrieving block:", err)
+			}
+			if result == nil {
+				t.Error("Got nil result")
+			}
+
+			resp := result.Value.(types.GetBlocksByHeightResp)
+			if len(resp.BlockItems) != 1 {
+				t.Error("Expected result of length 1")
+			}
+
+			if resp.BlockItems[0].BlockHeight != types.BlockHeightType(height) {
+				t.Errorf("Unexpected ancestor height:  Got %d, expected %d", resp.BlockItems[0].BlockHeight, height)
+			}
+
+			if !resp.BlockItems[0].BlockID.Equals(&expectedAncestorID) {
+				t.Error("Unexpected ancestor block ID")
+			}
+		}
+	}
+
+	for i := 0; i < len(tree); i++ {
+		for j := 1; j < len(tree[i]); j++ {
+			blockID := GetBlockID(tree[i][j])
+			height := tree[i][j] % 100
+
+			getReq := types.GetBlocksByHeightReq{}
+			getReq.HeadBlockID = blockID
+			getReq.NumBlocks = 1
+			getReq.ReturnBlockBlob = false
+			getReq.ReturnReceiptBlob = false
+
+			// GetAncestorAtHeight where the requested height is equal to the height of the requested head
+			getReq.AncestorStartHeight = types.BlockHeightType(height + 1)
+
+			genericReq := types.BlockStoreReq{Value: &getReq}
+
+			result, err := handler.HandleRequest(&genericReq)
+			if err == nil {
+				t.Error("Unexpectedly got non-error result attempting to retrieve descendant block:", result)
+			}
+			if _, ok := err.(*BlockHeightMismatch); !ok {
+				t.Error("Err should be BlockHeightMismatch")
+			}
+			if err.Error() != "Block height mismatch" {
+				t.Error("Unexpected error text")
+			}
+		}
+	}
+
+	CloseBackend(b)
+}
+
+func TestAddBlocks(t *testing.T) {
+	for backendType := range backendTypes {
+		addBlocksTestImpl(t, backendType, false)
+		addBlocksTestImpl(t, backendType, true)
 	}
 }
 

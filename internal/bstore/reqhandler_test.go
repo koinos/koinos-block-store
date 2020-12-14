@@ -339,6 +339,36 @@ func TestAddBlocks(t *testing.T) {
 				}
 			}
 		}
+
+		for i := 0; i < len(tree); i++ {
+			for j := 1; j < len(tree[i]); j++ {
+				blockID := GetBlockID(tree[i][j])
+				height := tree[i][j] % 100
+
+				getReq := types.GetBlocksByHeightReq{}
+				getReq.HeadBlockID = blockID
+				getReq.NumBlocks = 1
+				getReq.ReturnBlockBlob = false
+				getReq.ReturnReceiptBlob = false
+
+				// GetAncestorAtHeight where the requested height is equal to the height of the requested head
+				getReq.AncestorStartHeight = types.BlockHeightType(height + 1)
+
+				genericReq := types.BlockStoreReq{Value: &getReq}
+
+				result, err := handler.HandleRequest(&genericReq)
+				if err == nil {
+					t.Error("Unexpectedly got non-error result attempting to retrieve descendant block:", result)
+				}
+				if _, ok := err.(*BlockHeightMismatch); !ok {
+					t.Error("Err should be BlockHeightMismatch")
+				}
+				if err.Error() != "Block height mismatch" {
+					t.Error("Unexpected error text")
+				}
+			}
+		}
+
 		CloseBackend(b)
 	}
 }

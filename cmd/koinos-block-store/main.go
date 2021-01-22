@@ -1,15 +1,16 @@
 package main
 
 import (
-	"bufio"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
-	"os"
+	"time"
 
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
+	"github.com/koinos/koinos-block-store/internal/kusbus"
 	types "github.com/koinos/koinos-types-golang"
 )
 
@@ -29,43 +30,55 @@ func debugTesting() {
 	fmt.Println(string(testReqJSON))
 }
 
+type JsonContentTypeHandler struct {
+}
+
+func (*JsonContentTypeHandler) FromBytes(data []byte) (interface{}, error) {
+	req := types.NewBlockStoreReq()
+	err := json.Unmarshal(data, &req)
+	if err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+
+func (*JsonContentTypeHandler) ToBytes(resp interface{}) ([]byte, error) {
+	respBytes, err := json.Marshal(&resp)
+	if err != nil {
+		return nil, err
+	}
+	return respBytes, nil
+}
+
 func main() {
 	var dFlag = flag.String("d", "./db", "the database directory")
+	var amqpFlag = flag.String("a", "amqp://guest:guest@localhost:5672/", "AMQP server URL")
 
 	var opts = badger.DefaultOptions(*dFlag)
 	var backend = bstore.NewBadgerBackend(opts)
 	defer backend.Close()
 
+	kusbus := kusbus.NewKusbus(*amqpFlag)
+	kusbus.SetContentTypeHandler("application/json", &JsonContentTypeHandler{})
+
 	handler := bstore.RequestHandler{Backend: backend}
 
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		var req types.BlockStoreReq
-
-		b := types.BlockStoreReq{}
-		err := json.Unmarshal([]byte(scanner.Text()), &b)
-		if err != nil {
-			fmt.Println("Couldn't unmarshal request")
-			continue
+	kusbus.SetRpcHandler("koinos_block", func(rpcType string, rpc interface{}) (interface{}, error) {
+		req, ok := rpc.(types.BlockStoreReq)
+		if !ok {
+			return nil, errors.New("Unexpected request type")
 		}
-
 		resp, err := handler.HandleRequest(&req)
 		if err != nil {
-			fmt.Println("Error:", err)
-			continue
+			return nil, err
 		}
-		fmt.Println(resp.Value)
-
-		respJSON, err := json.Marshal(resp)
-		if err != nil {
-			fmt.Println("Couldn't marshal response")
-			continue
-		}
-
-		fmt.Println(string(respJSON))
+		return resp, nil
+	})
+	kusbus.SetBroadcastHandler("koinos.block.accept", func(topic string, msg interface{}) {
+		// TODO:  Do something with koinos.block.accept message
+	})
+	kusbus.Start()
+	for {
+		time.Sleep(time.Duration(1))
 	}
-
-	//op := types.CreateSystemContractOperation{}
-	//fmt.Println("hello world")
-	//fmt.Println(op)
 }

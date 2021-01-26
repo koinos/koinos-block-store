@@ -30,10 +30,10 @@ func debugTesting() {
 	fmt.Println(string(testReqJSON))
 }
 
-type JsonContentTypeHandler struct {
+type jsonContentTypeHandler struct {
 }
 
-func (*JsonContentTypeHandler) FromBytes(data []byte) (interface{}, error) {
+func (*jsonContentTypeHandler) FromBytes(data []byte) (interface{}, error) {
 	req := types.NewBlockStoreReq()
 	err := json.Unmarshal(data, &req)
 	if err != nil {
@@ -42,7 +42,7 @@ func (*JsonContentTypeHandler) FromBytes(data []byte) (interface{}, error) {
 	return req, nil
 }
 
-func (*JsonContentTypeHandler) ToBytes(resp interface{}) ([]byte, error) {
+func (*jsonContentTypeHandler) ToBytes(resp interface{}) ([]byte, error) {
 	respBytes, err := json.Marshal(&resp)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func main() {
 	defer backend.Close()
 
 	mq := koinosmq.NewKoinosMQ(*amqpFlag)
-	mq.SetContentTypeHandler("application/json", &JsonContentTypeHandler{})
+	mq.SetContentTypeHandler("application/json", &jsonContentTypeHandler{})
 
 	handler := bstore.RequestHandler{Backend: backend}
 

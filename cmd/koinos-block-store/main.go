@@ -10,7 +10,7 @@ import (
 
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
-	"github.com/koinos/koinos-block-store/internal/kusbus"
+	koinosmq "github.com/koinos/koinos-mq-golang"
 	types "github.com/koinos/koinos-types-golang"
 )
 
@@ -58,12 +58,12 @@ func main() {
 	var backend = bstore.NewBadgerBackend(opts)
 	defer backend.Close()
 
-	kusbus := kusbus.NewKusbus(*amqpFlag)
-	kusbus.SetContentTypeHandler("application/json", &JsonContentTypeHandler{})
+	mq := koinosmq.NewKoinosMQ(*amqpFlag)
+	mq.SetContentTypeHandler("application/json", &JsonContentTypeHandler{})
 
 	handler := bstore.RequestHandler{Backend: backend}
 
-	kusbus.SetRpcHandler("koinos_block", func(rpcType string, rpc interface{}) (interface{}, error) {
+	mq.SetRPCHandler("koinos_block", func(rpcType string, rpc interface{}) (interface{}, error) {
 		req, ok := rpc.(types.BlockStoreReq)
 		if !ok {
 			return nil, errors.New("Unexpected request type")
@@ -74,10 +74,10 @@ func main() {
 		}
 		return resp, nil
 	})
-	kusbus.SetBroadcastHandler("koinos.block.accept", func(topic string, msg interface{}) {
+	mq.SetBroadcastHandler("koinos.block.accept", func(topic string, msg interface{}) {
 		// TODO:  Do something with koinos.block.accept message
 	})
-	kusbus.Start()
+	mq.Start()
 	for {
 		time.Sleep(time.Duration(1))
 	}

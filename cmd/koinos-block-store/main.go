@@ -1,15 +1,15 @@
 package main
 
 import (
-	"bufio"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
+	"time"
 
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
+	koinosmq "github.com/koinos/koinos-mq-golang"
 	types "github.com/koinos/koinos-types-golang"
 )
 
@@ -31,41 +31,62 @@ func debugTesting() {
 
 func main() {
 	var dFlag = flag.String("d", "./db", "the database directory")
+	var amqpFlag = flag.String("a", "amqp://guest:guest@localhost:5672/", "AMQP server URL")
 
 	var opts = badger.DefaultOptions(*dFlag)
 	var backend = bstore.NewBadgerBackend(opts)
 	defer backend.Close()
 
+	mq := koinosmq.NewKoinosMQ(*amqpFlag)
+
 	handler := bstore.RequestHandler{Backend: backend}
 
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		var req types.BlockStoreReq
-
-		b := types.BlockStoreReq{}
-		err := json.Unmarshal([]byte(scanner.Text()), &b)
+	mq.SetRPCHandler("koinos_block", func(rpcType string, data []byte) ([]byte, error) {
+		//req, ok := rpc.(types.BlockStoreReq)
+		req := types.NewBlockStoreReq()
+		err := json.Unmarshal(data, req)
 		if err != nil {
-			fmt.Println("Couldn't unmarshal request")
-			continue
+			return nil, err
 		}
 
-		resp, err := handler.HandleRequest(&req)
+		var resp = types.NewBlockStoreResp()
+		resp, err = handler.HandleRequest(req)
 		if err != nil {
-			fmt.Println("Error:", err)
-			continue
-		}
-		fmt.Println(resp.Value)
-
-		respJSON, err := json.Marshal(resp)
-		if err != nil {
-			fmt.Println("Couldn't marshal response")
-			continue
+			return nil, err
 		}
 
-		fmt.Println(string(respJSON))
+		var outputBytes []byte
+		outputBytes, err = json.Marshal(&resp)
+
+		return outputBytes, err
+	})
+	mq.SetBroadcastHandler("koinos.block.accept", func(topic string, data []byte) {
+		fmt.Println("Received message on koinos.block.accept")
+
+		sub := types.NewBlockSubmission()
+		err := json.Unmarshal(data, sub)
+		if err != nil {
+			return
+		}
+		blockBlob, _ := json.Marshal(sub.Block)
+
+		req := types.BlockStoreReq{
+			Value: types.AddBlockReq{
+				BlockToAdd: types.BlockItem{
+					BlockID:     sub.Topology.ID,
+					BlockHeight: sub.Topology.Height,
+					BlockBlob:   blockBlob,
+					// TODO: block receipt
+				},
+				PreviousBlockID: sub.Topology.Previous,
+			},
+		}
+		handler.HandleRequest(&req)
+
+		fmt.Println("Success")
+	})
+	mq.Start()
+	for {
+		time.Sleep(time.Duration(1))
 	}
-
-	//op := types.CreateSystemContractOperation{}
-	//fmt.Println("hello world")
-	//fmt.Println(op)
 }

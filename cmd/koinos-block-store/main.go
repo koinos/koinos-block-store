@@ -61,7 +61,29 @@ func main() {
 		return outputBytes, err
 	})
 	mq.SetBroadcastHandler("koinos.block.accept", func(topic string, data []byte) {
-		// TODO:  Do something with koinos.block.accept message
+		fmt.Println("Received message on koinos.block.accept")
+
+		sub := types.NewBlockSubmission()
+		err := json.Unmarshal(data, sub)
+		if err != nil {
+			return
+		}
+		blockBlob, _ := json.Marshal(sub.Block)
+
+		req := types.BlockStoreReq{
+			Value: types.AddBlockReq{
+				BlockToAdd: types.BlockItem{
+					BlockID:     sub.Topology.ID,
+					BlockHeight: sub.Topology.Height,
+					BlockBlob:   blockBlob,
+					// TODO: block receipt
+				},
+				PreviousBlockID: sub.Topology.Previous,
+			},
+		}
+		handler.HandleRequest(&req)
+
+		fmt.Println("Success")
 	})
 	mq.Start()
 	for {

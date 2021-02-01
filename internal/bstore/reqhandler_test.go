@@ -335,7 +335,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				t.Error("Got nil result")
 			}
 
-			resp := result.Value.(types.GetBlocksByHeightResp)
+			resp := result.Value.(*types.GetBlocksByHeightResp)
 			if len(resp.BlockItems) != 1 {
 				t.Error("Expected result of length 1")
 			}
@@ -505,7 +505,7 @@ func TestAddTransaction(t *testing.T) {
 				t.Error("Got nil result")
 			}
 
-			tres, ok := result.Value.(types.GetTransactionsByIDResp)
+			tres, ok := result.Value.(*types.GetTransactionsByIDResp)
 			if !ok {
 				t.Error("Result is wrong type")
 			}

@@ -98,8 +98,39 @@ func (handler *RequestHandler) handleReservedReq(req *types.ReservedReq) (*types
 }
 
 func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDReq) (*types.GetBlocksByIDResp, error) {
-	// TODO implement this
-	return types.NewGetBlocksByIDResp(), nil
+	result := types.NewGetBlocksByIDResp()
+	emptyVb := types.NewVariableBlob()
+
+	result.BlockItems = make(types.VectorBlockItem, len(req.BlockID))
+
+	for i := range req.BlockID {
+		vbKey := req.BlockID[i].Serialize(types.NewVariableBlob())
+		bytes, err := handler.Backend.Get([]byte(*vbKey))
+
+		result.BlockItems[i].Block.SetBlob(emptyVb)
+		result.BlockItems[i].BlockReceipt.SetBlob(emptyVb)
+
+		if err == nil {
+			continue
+		}
+
+		vbValue := types.VariableBlob(bytes)
+		read, record, err := types.DeserializeBlockRecord(&vbValue)
+
+		if read == 0 || err != nil {
+			continue
+		}
+
+		if req.ReturnBlockBlob {
+			result.BlockItems[i].Block = record.Block
+		}
+
+		if req.ReturnReceiptBlob {
+			result.BlockItems[i].BlockReceipt = record.BlockReceipt
+		}
+	}
+
+	return result, nil
 }
 
 /**

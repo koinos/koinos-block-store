@@ -210,15 +210,36 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		{411, 712, 713, 714, 715, 716, 717, 718},
 		{714, 815, 816, 817, 818, 819},
 	}
+	// A compact notation of the history of each of the heads
+	treeHist := [][]uint64{
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
+		{0, 101, 102, 103, 204, 205, 206, 207, 208, 209, 210, 211},
+		{0, 101, 102, 103, 304, 305, 306, 307},
+		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419},
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 510, 511},
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 613, 614},
+		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 712, 713, 714, 715, 716, 717, 718},
+		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 712, 713, 714, 815, 816, 817, 818, 819},
+	}
 
 	nonExistentBlockID := GetBlockID(999)
+
+	for i := 0; i < len(tree); i++ {
+		for j := 0; j < len(tree[i]); j++ {
+			blockID := GetBlockID(tree[i][j])
+			jid, err := json.Marshal(blockID)
+			if err != nil {
+				t.Error("Could not marshal JSON", err)
+			}
+			fmt.Printf("%d -> %s\n", tree[i][j], jid)
+		}
+	}
 
 	for i := 0; i < len(tree); i++ {
 		for j := 1; j < len(tree[i]); j++ {
 			blockID := GetBlockID(tree[i][j])
 			parentID := GetBlockID(tree[i][j-1])
 
-			// fmt.Printf("Block %d has ID %v\n", tree[i][j], hex.EncodeToString( block_id.Digest ) );
 			addReq := types.AddBlockReq{}
 			addReq.BlockToAdd.BlockID = blockID
 			addReq.PreviousBlockID = parentID
@@ -375,6 +396,62 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			}
 			if err.Error() != "Block height mismatch" {
 				t.Error("Unexpected error text")
+			}
+		}
+	}
+
+	// Check querying all possible past ranges from head at end of sequence
+	for i := 0; i < len(tree); i++ {
+		headIndex := len(tree[i]) - 1
+		headID := GetBlockID(tree[i][headIndex])
+
+		for j := 1; j < len(treeHist[i]); j++ {
+			// Iterate beyond the tree
+			kMax := len(treeHist[i]) + 5
+
+			for k := j; k < kMax; k++ {
+				getReq := types.GetBlocksByHeightReq{}
+				getReq.HeadBlockID = headID
+				getReq.NumBlocks = types.UInt32(k - j)
+				getReq.ReturnBlockBlob = false
+				getReq.ReturnReceiptBlob = false
+				getReq.AncestorStartHeight = types.BlockHeightType(j)
+
+				genericReq := types.BlockStoreReq{Value: &getReq}
+
+				jreq, err := json.Marshal(getReq)
+				if err != nil {
+					panic("Couldn't serialize JSON")
+				}
+				fmt.Printf("\n\n\nRequest: %s\n", jreq)
+
+				result, err := handler.HandleRequest(&genericReq)
+				if err != nil {
+					t.Error("GetBlocksByHeightReq returned error: " + err.Error())
+				}
+
+				endIndex := k
+				if endIndex > len(treeHist[i]) {
+					endIndex = len(treeHist[i])
+				}
+				blockSeq := treeHist[i][j:endIndex]
+				fmt.Printf("blockSeq: %v\n", blockSeq)
+
+				resp := result.Value.(types.GetBlocksByHeightResp)
+				if len(resp.BlockItems) != len(blockSeq) {
+					t.Errorf("Unexpected result length, expected %d, got %d, expect array is %v", len(resp.BlockItems), len(blockSeq), blockSeq)
+				}
+
+				for checkIndex := 0; checkIndex < len(resp.BlockItems); checkIndex++ {
+					expectedHeight := types.BlockHeightType(blockSeq[checkIndex] % 100)
+					if resp.BlockItems[checkIndex].BlockHeight != expectedHeight {
+						t.Error("Unexpected block height in response")
+					}
+					expectedBlockID := GetBlockID(blockSeq[checkIndex])
+					if !resp.BlockItems[checkIndex].BlockID.Equals(&expectedBlockID) {
+						t.Error("Unexpected ancestor block ID")
+					}
+				}
 			}
 		}
 	}

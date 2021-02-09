@@ -334,42 +334,42 @@ func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) (*types.B
 		if err != nil {
 			return nil, err
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		return &types.BlockStoreResp{Value: result}, nil
 	case *types.GetBlocksByIDReq:
 		v := req.Value.(*types.GetBlocksByIDReq)
 		result, err := handler.handleGetBlocksByIDReq(v)
 		if err != nil {
 			return nil, err
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		return &types.BlockStoreResp{Value: result}, nil
 	case *types.GetBlocksByHeightReq:
 		v := req.Value.(*types.GetBlocksByHeightReq)
 		result, err := handler.handleGetBlocksByHeightReq(v)
 		if err != nil {
 			return nil, err
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		return &types.BlockStoreResp{Value: result}, nil
 	case *types.AddBlockReq:
 		v := req.Value.(*types.AddBlockReq)
 		result, err := handler.handleAddBlockReq(v)
 		if err != nil {
 			return nil, err
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		return &types.BlockStoreResp{Value: result}, nil
 	case *types.AddTransactionReq:
 		v := req.Value.(*types.AddTransactionReq)
 		result, err := handler.handleAddTransactionReq(v)
 		if err != nil {
 			return nil, err
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		return &types.BlockStoreResp{Value: result}, nil
 	case *types.GetTransactionsByIDReq:
 		v := req.Value.(*types.GetTransactionsByIDReq)
 		result, err := handler.handleGetTransactionsByIDReq(v)
 		if err != nil {
 			return nil, err
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		return &types.BlockStoreResp{Value: result}, nil
 	}
 	return nil, &UnknownReqError{}
 }

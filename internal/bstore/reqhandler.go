@@ -194,9 +194,6 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 	if req.NumBlocks <= 0 {
 		return resp, nil
 	}
-	if req.ReturnReceiptBlob {
-		return nil, &NotImplemented{}
-	}
 
 	resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, req.NumBlocks))
 

@@ -225,17 +225,6 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 	nonExistentBlockID := GetBlockID(999)
 
 	for i := 0; i < len(tree); i++ {
-		for j := 0; j < len(tree[i]); j++ {
-			blockID := GetBlockID(tree[i][j])
-			jid, err := json.Marshal(blockID)
-			if err != nil {
-				t.Error("Could not marshal JSON", err)
-			}
-			fmt.Printf("%d -> %s\n", tree[i][j], jid)
-		}
-	}
-
-	for i := 0; i < len(tree); i++ {
 		for j := 1; j < len(tree[i]); j++ {
 			blockID := GetBlockID(tree[i][j])
 			parentID := GetBlockID(tree[i][j-1])
@@ -419,12 +408,6 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 
 				genericReq := types.BlockStoreReq{Value: &getReq}
 
-				jreq, err := json.Marshal(getReq)
-				if err != nil {
-					panic("Couldn't serialize JSON")
-				}
-				fmt.Printf("\n\n\nRequest: %s\n", jreq)
-
 				result, err := handler.HandleRequest(&genericReq)
 				if err != nil {
 					t.Error("GetBlocksByHeightReq returned error: " + err.Error())
@@ -435,7 +418,6 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 					endIndex = len(treeHist[i])
 				}
 				blockSeq := treeHist[i][j:endIndex]
-				fmt.Printf("blockSeq: %v\n", blockSeq)
 
 				resp := result.Value.(types.GetBlocksByHeightResp)
 				if len(resp.BlockItems) != len(blockSeq) {

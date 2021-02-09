@@ -2,7 +2,6 @@ package bstore
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/bits"
 
@@ -160,12 +159,6 @@ func (handler *RequestHandler) fillBlocks(
 			return nil, &DeserializeError{}
 		}
 
-		jrec, err := json.Marshal(record)
-		if err != nil {
-			panic("Couldn't serialize JSON")
-		}
-		fmt.Printf("rec: %s\n", jrec)
-
 		// Blocks are expected to have decreasing height
 		if i > 0 {
 			expectedHeight := blockItems[k+1].BlockHeight - 1
@@ -188,12 +181,6 @@ func (handler *RequestHandler) fillBlocks(
 		if (record.BlockHeight == 0) || (len(record.PreviousBlockIds) == 0) {
 			return nil, &TraverseBeforeGenesisError{}
 		}
-
-		jitem, err := json.Marshal(blockItems[k])
-		if err != nil {
-			panic("Couldn't serialize JSON")
-		}
-		fmt.Printf("blockItems[%d]: %s\n", k, jitem)
 
 		blockID = record.PreviousBlockIds[0]
 	}
@@ -228,7 +215,6 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 		endHeight = uint64(headBlockHeight) + 1
 		numBlocks = types.UInt32(endHeight - uint64(req.AncestorStartHeight))
 	}
-	fmt.Printf("h_start=%d   h_end=%d   num=%d\n", req.AncestorStartHeight, endHeight, numBlocks)
 
 	blockID, err := getAncestorIDAtHeight(handler.Backend, &req.HeadBlockID, types.BlockHeightType(endHeight-1))
 	if err != nil {

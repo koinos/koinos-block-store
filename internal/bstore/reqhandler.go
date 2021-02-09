@@ -107,8 +107,8 @@ func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDRe
 		vbKey := req.BlockID[i].Serialize(types.NewVariableBlob())
 		bytes, err := handler.Backend.Get([]byte(*vbKey))
 
-		result.BlockItems[i].Block.SetBlob(emptyVb)
-		result.BlockItems[i].BlockReceipt.SetBlob(emptyVb)
+		result.BlockItems[i].Block = *types.NewOpaqueBlockFromBlob(emptyVb)
+		result.BlockItems[i].BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(emptyVb)
 
 		if err == nil {
 			continue

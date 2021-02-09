@@ -71,7 +71,7 @@ func main() {
 		blockBlob, _ := json.Marshal(sub.Block)
 
 		req := types.BlockStoreReq{
-			Value: types.AddBlockReq{
+			Value: &types.AddBlockReq{
 				BlockToAdd: types.BlockItem{
 					BlockID:     sub.Topology.ID,
 					BlockHeight: sub.Topology.Height,

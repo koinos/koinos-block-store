@@ -74,31 +74,6 @@ func TestHandleReservedRequest(t *testing.T) {
 	}
 }
 
-/*
-type UnknownReq struct {
-}
-
-func TestHandleUnknownRequestType(t *testing.T) {
-   for bType := range backendTypes {
-      b := NewBackend(bType)
-      handler := RequestHandler{b}
-
-      testReq := types.BlockStoreReq{Value: UnknownReq{}}
-      result := handler.HandleRequest(&testReq)
-
-      errval, ok := result.Value.(*types.BlockStoreError)
-      if !ok {
-         t.Error("Should have errored BlockStoreError")
-      }
-      if errval.ErrorText != "Unknown request type" {
-         t.Error("Unexpected error text")
-      }
-
-      CloseBackend(b)
-   }
-}
-*/
-
 func SliceEqual(a []uint64, b []uint64) bool {
 	n := len(a)
 	if len(b) != n {

@@ -287,7 +287,6 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
  */
 func getPreviousHeights(x uint64) []uint64 {
 	// TODO:  Do we want to subtract 1 from the input and add 1 to the output, to account for the fact that initial block's height is 1?
-	x = x - 1
 	if x == 0 {
 		return []uint64{}
 	}
@@ -295,7 +294,7 @@ func getPreviousHeights(x uint64) []uint64 {
 	zeros := bits.TrailingZeros64(x)
 	result := make([]uint64, zeros+1)
 	for i := 0; i <= zeros; i++ {
-		result[i] = x - (uint64(1) << i) + 1
+		result[i] = x - (uint64(1) << i)
 	}
 
 	return result

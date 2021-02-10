@@ -269,14 +269,15 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
  */
 func getPreviousHeights(x uint64) []uint64 {
 	// TODO:  Do we want to subtract 1 from the input and add 1 to the output, to account for the fact that initial block's height is 1?
+	x = x - 1
 	if x == 0 {
 		return []uint64{}
 	}
 
-	bitLen := bits.Len64(x - 1)
-	result := make([]uint64, bitLen)
-	for i := 0; i < len(result); i++ {
-		result[i] = x - (uint64(1) << i)
+	zeros := bits.TrailingZeros64(x)
+	result := make([]uint64, zeros+1)
+	for i := 0; i <= zeros; i++ {
+		result[i] = x - (uint64(1) << i) + 1
 	}
 
 	return result
@@ -298,8 +299,19 @@ func getPreviousHeightIndex(goal types.BlockHeightType, current types.BlockHeigh
 		return 0, 0, &BlockHeightMismatch{}
 	}
 
-	bitLen := bits.Len64(uint64(current - goal))
-	return bitLen - 1, types.BlockHeightType(uint64(current) - (1 << (bitLen - 1))), nil
+	var x uint64 = uint64(current)
+	var g uint64 = uint64(goal)
+	zeros := bits.TrailingZeros64(x)
+
+	var lastH uint64 = 0
+	for i := 0; i <= zeros; i++ {
+		h := x - (uint64(1) << i)
+		if h < g {
+			return i - 1, types.BlockHeightType(lastH), nil
+		}
+		lastH = h
+	}
+	return zeros, types.BlockHeightType(lastH), nil
 }
 
 /**

@@ -112,12 +112,12 @@ func (handler *RequestHandler) fillBlocks(
 	lastID *types.Multihash,
 	numBlocks types.UInt32,
 	returnBlockBlob types.Boolean,
-	returnReceiptBlob types.Boolean) (*types.VectorBlockItem, error) {
+	returnReceiptBlob types.Boolean) (types.VectorBlockItem, error) {
 
 	blockItems := types.VectorBlockItem(make([]types.BlockItem, numBlocks))
 
 	if numBlocks <= 0 {
-		return &blockItems, nil
+		return blockItems, nil
 	}
 
 	blockID := *lastID
@@ -177,7 +177,7 @@ func (handler *RequestHandler) fillBlocks(
 		blockID = record.PreviousBlockIds[0]
 	}
 
-	return &blockItems, nil
+	return blockItems, nil
 }
 
 func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksByHeightReq) (*types.GetBlocksByHeightResp, error) {
@@ -186,8 +186,6 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 	if req.NumBlocks <= 0 {
 		return resp, nil
 	}
-
-	resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, req.NumBlocks))
 
 	headBlockHeight, err := getBlockHeight(handler.Backend, &req.HeadBlockID)
 	if err != nil {
@@ -217,7 +215,7 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 		return nil, err
 	}
 
-	resp.BlockItems = *blockItems
+	resp.BlockItems = blockItems
 
 	if len(resp.BlockItems) > 0 {
 		expectedHeight := req.AncestorStartHeight

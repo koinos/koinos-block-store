@@ -2,6 +2,8 @@ package bstore
 
 import (
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math/bits"
 
@@ -119,8 +121,8 @@ func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDRe
 func (handler *RequestHandler) fillBlocks(
 	lastID *types.Multihash,
 	numBlocks types.UInt32,
-	returnBlockBlob types.Boolean,
-	returnReceiptBlob types.Boolean) (*types.VectorBlockItem, error) {
+	returnBlock types.Boolean,
+	returnReceipt types.Boolean) (*types.VectorBlockItem, error) {
 
 	blockItems := types.VectorBlockItem(make([]types.BlockItem, numBlocks))
 
@@ -135,6 +137,9 @@ func (handler *RequestHandler) fillBlocks(
 		// k is the index into the array
 		k := numBlocks - i - 1
 
+		blockItems[k].Block = *types.NewOpaqueBlockFromBlob(types.NewVariableBlob())
+		blockItems[k].BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
+
 		vbKey := blockID.Serialize(types.NewVariableBlob())
 		recordBytes, err := handler.Backend.Get(*vbKey)
 		if err != nil {
@@ -142,7 +147,6 @@ func (handler *RequestHandler) fillBlocks(
 		}
 		if len(recordBytes) == 0 {
 			// If block does not exist, return a default-initialized block.
-			// TODO:  What is the canonical zero block ID?
 			continue
 		}
 
@@ -171,11 +175,11 @@ func (handler *RequestHandler) fillBlocks(
 
 		blockItems[k].BlockID = blockID
 		blockItems[k].BlockHeight = record.BlockHeight
-		if returnBlockBlob {
-			blockItems[k].BlockBlob = record.BlockBlob
+		if returnBlock {
+			blockItems[k].Block = record.Block
 		}
-		if returnReceiptBlob {
-			blockItems[k].BlockReceiptBlob = record.BlockReceiptBlob
+		if returnReceipt {
+			blockItems[k].BlockReceipt = record.BlockReceipt
 		}
 
 		if (record.BlockHeight == 0) || (len(record.PreviousBlockIds) == 0) {
@@ -189,12 +193,15 @@ func (handler *RequestHandler) fillBlocks(
 }
 
 func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksByHeightReq) (*types.GetBlocksByHeightResp, error) {
+	b, _ := json.Marshal(req)
+	fmt.Println(string(b))
+
 	resp := types.NewGetBlocksByHeightResp()
 
 	if req.NumBlocks <= 0 {
 		return resp, nil
 	}
-	if req.ReturnReceiptBlob {
+	if req.ReturnReceipt {
 		return nil, &NotImplemented{}
 	}
 
@@ -223,7 +230,7 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 		}
 	}
 
-	blockItems, err := handler.fillBlocks(blockID, numBlocks, req.ReturnBlockBlob, req.ReturnReceiptBlob)
+	blockItems, err := handler.fillBlocks(blockID, numBlocks, req.ReturnBlock, req.ReturnReceipt)
 	if err != nil {
 		return nil, err
 	}
@@ -262,6 +269,7 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
  */
 func getPreviousHeights(x uint64) []uint64 {
 	// TODO:  Do we want to subtract 1 from the input and add 1 to the output, to account for the fact that initial block's height is 1?
+	x = x - 1
 	if x == 0 {
 		return []uint64{}
 	}
@@ -269,7 +277,7 @@ func getPreviousHeights(x uint64) []uint64 {
 	zeros := bits.TrailingZeros64(x)
 	result := make([]uint64, zeros+1)
 	for i := 0; i <= zeros; i++ {
-		result[i] = x - (uint64(1) << i)
+		result[i] = x - (uint64(1) << i) + 1
 	}
 
 	return result
@@ -353,9 +361,9 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 		}
 
 		// TODO is there a way to avoid this copy?
-		var vbValue types.VariableBlob = types.VariableBlob(recordBytes)
+		//var vbValue types.VariableBlob = types.VariableBlob(recordBytes)
 
-		consumed, record, err := types.DeserializeBlockRecord(&vbValue)
+		consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))
 		if err != nil {
 			fmt.Println("Couldn't deserialize block record")
 			fmt.Println("vb: ", recordBytes)
@@ -394,14 +402,16 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 
 func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types.AddBlockResp, error) {
 
+	b, _ := json.Marshal(req)
+	fmt.Println(string(b))
 	record := types.BlockRecord{}
 
 	record.BlockID = req.BlockToAdd.BlockID
 	record.BlockHeight = req.BlockToAdd.BlockHeight
-	record.BlockBlob = req.BlockToAdd.BlockBlob
-	record.BlockReceiptBlob = req.BlockToAdd.BlockReceiptBlob
+	record.Block = req.BlockToAdd.Block
+	record.BlockReceipt = req.BlockToAdd.BlockReceipt
 
-	if req.BlockToAdd.BlockHeight > 0 {
+	if req.BlockToAdd.BlockHeight > 1 {
 		previousHeights := getPreviousHeights(uint64(req.BlockToAdd.BlockHeight))
 
 		record.PreviousBlockIds = make([]types.Multihash, len(previousHeights))
@@ -437,12 +447,9 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 }
 
 func (handler *RequestHandler) handleAddTransactionReq(req *types.AddTransactionReq) (*types.AddTransactionResp, error) {
-	if req.TransactionBlob == nil {
-		return nil, &NilTransaction{}
-	}
 
 	record := types.TransactionRecord{}
-	record.TransactionBlob = req.TransactionBlob
+	record.Transaction = req.Transaction
 
 	vbKey := req.TransactionID.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
@@ -482,7 +489,7 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 		if consumed != uint64(len(recordBytes)) {
 			return nil, &DeserializeError{}
 		}
-		resp.TransactionItems = append(resp.TransactionItems, types.TransactionItem{TransactionBlob: record.TransactionBlob})
+		resp.TransactionItems = append(resp.TransactionItems, types.TransactionItem{Transaction: record.Transaction})
 	}
 
 	return &resp, nil
@@ -490,49 +497,62 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 
 // HandleRequest handles and routes blockstore requests
 func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) (*types.BlockStoreResp, error) {
-	switch req.Value.(type) {
+	b, _ := json.Marshal(req)
+	fmt.Println(string(b))
+	var response types.BlockStoreResp
+	var err error
+	switch v := req.Value.(type) {
 	case *types.ReservedReq:
-		v := req.Value.(*types.ReservedReq)
-		result, err := handler.handleReservedReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.ReservedResp
+		result, err = handler.handleReservedReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		break
 	case *types.GetBlocksByIDReq:
-		v := req.Value.(*types.GetBlocksByIDReq)
-		result, err := handler.handleGetBlocksByIDReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.GetBlocksByIDResp
+		result, err = handler.handleGetBlocksByIDReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		break
 	case *types.GetBlocksByHeightReq:
-		v := req.Value.(*types.GetBlocksByHeightReq)
-		result, err := handler.handleGetBlocksByHeightReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.GetBlocksByHeightResp
+		result, err = handler.handleGetBlocksByHeightReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		break
 	case *types.AddBlockReq:
-		v := req.Value.(*types.AddBlockReq)
-		result, err := handler.handleAddBlockReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.AddBlockResp
+		result, err = handler.handleAddBlockReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		break
 	case *types.AddTransactionReq:
-		v := req.Value.(*types.AddTransactionReq)
-		result, err := handler.handleAddTransactionReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.AddTransactionResp
+		result, err = handler.handleAddTransactionReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		break
 	case *types.GetTransactionsByIDReq:
-		v := req.Value.(*types.GetTransactionsByIDReq)
-		result, err := handler.handleGetTransactionsByIDReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.GetTransactionsByIDResp
+		result, err = handler.handleGetTransactionsByIDReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: *result}, nil
+		break
+	default:
+		err = errors.New("Unknown request")
 	}
-	return nil, &UnknownReqError{}
+
+	if err != nil {
+		response.Value = &types.BlockStoreError{
+			ErrorText: types.String(err.Error()),
+		}
+	}
+
+	return &response, nil
 }

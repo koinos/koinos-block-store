@@ -169,14 +169,15 @@ func GetEmptyBlockID() types.Multihash {
 	return types.Multihash{ID: 0x12, Digest: vb}
 }
 
-func GetBlockBody(num uint64) types.VariableBlob {
+func GetBlockBody(num uint64) *types.VariableBlob {
 	greetings := []string{
 		"Hello this is block %d.",
 		"Greetings from block %d.",
 		"I like being in block %d.",
 	}
 
-	return []byte(fmt.Sprintf(greetings[int(num)%len(greetings)], num))
+	vb := types.VariableBlob([]byte(fmt.Sprintf(greetings[int(num)%len(greetings)], num)))
+	return &vb
 }
 
 func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
@@ -188,8 +189,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		addReq.BlockToAdd.BlockID = GetBlockID(0)
 		addReq.PreviousBlockID = GetEmptyBlockID()
 		addReq.BlockToAdd.BlockHeight = 0
-		addReq.BlockToAdd.BlockBlob = GetBlockBody(0)
-		addReq.BlockToAdd.BlockReceiptBlob = types.VariableBlob(make([]byte, 0))
+		addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromBlob(GetBlockBody(0))
+		addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
 
 		genericReq := types.BlockStoreReq{Value: &addReq}
 
@@ -233,8 +234,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			addReq.BlockToAdd.BlockID = blockID
 			addReq.PreviousBlockID = parentID
 			addReq.BlockToAdd.BlockHeight = types.BlockHeightType(tree[i][j] % 100)
-			addReq.BlockToAdd.BlockBlob = GetBlockBody(tree[i][j])
-			addReq.BlockToAdd.BlockReceiptBlob = types.VariableBlob(make([]byte, 0))
+			addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromBlob(GetBlockBody(tree[i][j]))
+			addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
 
 			genericReq := types.BlockStoreReq{Value: &addReq}
 
@@ -255,8 +256,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			getNeReq.HeadBlockID = nonExistentBlockID
 			getNeReq.AncestorStartHeight = types.BlockHeightType(j - 1)
 			getNeReq.NumBlocks = 1
-			getNeReq.ReturnBlockBlob = false
-			getNeReq.ReturnReceiptBlob = false
+			getNeReq.ReturnBlock = false
+			getNeReq.ReturnReceipt = false
 
 			genericNeReq := types.BlockStoreReq{Value: &getNeReq}
 			_, err = json.Marshal(genericNeReq)
@@ -327,8 +328,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			getReq.HeadBlockID = blockID
 			getReq.AncestorStartHeight = types.BlockHeightType(height)
 			getReq.NumBlocks = 1
-			getReq.ReturnBlockBlob = false
-			getReq.ReturnReceiptBlob = false
+			getReq.ReturnBlock = false
+			getReq.ReturnReceipt = false
 
 			genericReq := types.BlockStoreReq{Value: &getReq}
 
@@ -368,8 +369,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			getReq := types.GetBlocksByHeightReq{}
 			getReq.HeadBlockID = blockID
 			getReq.NumBlocks = 1
-			getReq.ReturnBlockBlob = false
-			getReq.ReturnReceiptBlob = false
+			getReq.ReturnBlock = false
+			getReq.ReturnReceipt = false
 
 			// GetAncestorAtHeight where the requested height is equal to the height of the requested head
 			getReq.AncestorStartHeight = types.BlockHeightType(height + 1)
@@ -451,7 +452,7 @@ func TestAddBlocks(t *testing.T) {
 func GetAddTransactionReq(n types.UInt64) types.AddTransactionReq {
 	vb := n.Serialize(types.NewVariableBlob())
 	m := types.Multihash{ID: 0x12, Digest: *vb}
-	r := types.AddTransactionReq{TransactionID: m, TransactionBlob: *vb}
+	r := types.AddTransactionReq{TransactionID: m, Transaction: *types.NewOpaqueTransactionFromBlob(vb)}
 	return r
 }
 
@@ -542,7 +543,7 @@ func TestAddTransaction(t *testing.T) {
 
 		// Test adding bad transaction
 		{
-			r := types.AddTransactionReq{TransactionID: reqs[0].TransactionID, TransactionBlob: nil}
+			r := types.AddTransactionReq{TransactionID: reqs[0].TransactionID, Transaction: *types.NewOpaqueTransactionFromBlob(types.NewVariableBlob())}
 			bsr := types.BlockStoreReq{Value: &r}
 			_, err := handler.HandleRequest(&bsr)
 			if _, ok := err.(*NilTransaction); !ok {
@@ -570,7 +571,7 @@ func TestAddTransaction(t *testing.T) {
 			}
 
 			for i, nt := range tres.TransactionItems {
-				if !bytes.Equal(reqs[i].TransactionBlob, nt.TransactionBlob) {
+				if !bytes.Equal(*reqs[i].Transaction.GetBlob(), *nt.Transaction.GetBlob()) {
 					t.Error("Result does not match added transaction")
 				}
 			}

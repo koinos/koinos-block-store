@@ -33,6 +33,8 @@ func main() {
 	var dFlag = flag.String("d", "./db", "the database directory")
 	var amqpFlag = flag.String("a", "amqp://guest:guest@localhost:5672/", "AMQP server URL")
 
+	flag.Parse()
+
 	var opts = badger.DefaultOptions(*dFlag)
 	var backend = bstore.NewBadgerBackend(opts)
 	defer backend.Close()
@@ -63,20 +65,21 @@ func main() {
 	mq.SetBroadcastHandler("koinos.block.accept", func(topic string, data []byte) {
 		fmt.Println("Received message on koinos.block.accept")
 
+		fmt.Println(string(data))
+
 		sub := types.NewBlockSubmission()
 		err := json.Unmarshal(data, sub)
 		if err != nil {
 			return
 		}
-		blockBlob, _ := json.Marshal(sub.Block)
 
 		req := types.BlockStoreReq{
-			Value: types.AddBlockReq{
+			Value: &types.AddBlockReq{
 				BlockToAdd: types.BlockItem{
-					BlockID:     sub.Topology.ID,
-					BlockHeight: sub.Topology.Height,
-					BlockBlob:   blockBlob,
-					// TODO: block receipt
+					BlockID:      sub.Topology.ID,
+					BlockHeight:  sub.Topology.Height,
+					Block:        *types.NewOpaqueBlockFromNative(sub.Block),
+					BlockReceipt: *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob()),
 				},
 				PreviousBlockID: sub.Topology.Previous,
 			},

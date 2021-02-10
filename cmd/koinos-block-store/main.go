@@ -52,10 +52,7 @@ func main() {
 		}
 
 		var resp = types.NewBlockStoreResp()
-		resp, err = handler.HandleRequest(req)
-		if err != nil {
-			return nil, err
-		}
+		resp = handler.HandleRequest(req)
 
 		var outputBytes []byte
 		outputBytes, err = json.Marshal(&resp)
@@ -85,10 +82,7 @@ func main() {
 				PreviousBlockID: sub.Topology.Previous,
 			},
 		}
-		_, err = handler.HandleRequest(&req)
-		if err != nil {
-			fmt.Println(err)
-		}
+		_ = handler.HandleRequest(&req)
 
 		fmt.Println("Success")
 	})

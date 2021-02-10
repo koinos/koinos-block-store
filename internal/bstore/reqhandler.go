@@ -516,7 +516,7 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 }
 
 // HandleRequest handles and routes blockstore requests
-func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) (*types.BlockStoreResp, error) {
+func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) *types.BlockStoreResp {
 	b, _ := json.Marshal(req)
 	fmt.Println(string(b))
 	var response types.BlockStoreResp
@@ -574,5 +574,5 @@ func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) (*types.B
 		}
 	}
 
-	return &response, nil
+	return &response
 }

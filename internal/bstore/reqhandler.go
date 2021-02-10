@@ -55,14 +55,6 @@ func (e *TransactionNotPresent) Error() string {
 	return "Transaction was not present"
 }
 
-// NilTransaction is an error type for nil transactions
-type NilTransaction struct {
-}
-
-func (e *NilTransaction) Error() string {
-	return "Transaction blob is Nil"
-}
-
 // DeserializeError is an error type for errors during deserialization
 type DeserializeError struct {
 }
@@ -108,8 +100,39 @@ func (handler *RequestHandler) handleReservedReq(req *types.ReservedReq) (*types
 }
 
 func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDReq) (*types.GetBlocksByIDResp, error) {
-	// TODO implement this
-	return types.NewGetBlocksByIDResp(), nil
+	result := types.NewGetBlocksByIDResp()
+	emptyVb := types.NewVariableBlob()
+
+	result.BlockItems = make(types.VectorBlockItem, len(req.BlockID))
+
+	for i := range req.BlockID {
+		vbKey := req.BlockID[i].Serialize(types.NewVariableBlob())
+		bytes, err := handler.Backend.Get([]byte(*vbKey))
+
+		result.BlockItems[i].Block = *types.NewOpaqueBlockFromBlob(emptyVb)
+		result.BlockItems[i].BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(emptyVb)
+
+		if err == nil {
+			continue
+		}
+
+		vbValue := types.VariableBlob(bytes)
+		read, record, err := types.DeserializeBlockRecord(&vbValue)
+
+		if read == 0 || err != nil {
+			continue
+		}
+
+		if req.ReturnBlockBlob {
+			result.BlockItems[i].Block = record.Block
+		}
+
+		if req.ReturnReceiptBlob {
+			result.BlockItems[i].BlockReceipt = record.BlockReceipt
+		}
+	}
+
+	return result, nil
 }
 
 /**
@@ -203,11 +226,6 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 	if req.NumBlocks <= 0 {
 		return resp, nil
 	}
-	if req.ReturnReceipt {
-		return nil, &NotImplemented{}
-	}
-
-	//resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, req.NumBlocks))
 
 	headBlockHeight, err := getBlockHeight(handler.Backend, &req.HeadBlockID)
 	if err != nil {
@@ -450,7 +468,6 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 }
 
 func (handler *RequestHandler) handleAddTransactionReq(req *types.AddTransactionReq) (*types.AddTransactionResp, error) {
-
 	record := types.TransactionRecord{}
 	record.Transaction = req.Transaction
 

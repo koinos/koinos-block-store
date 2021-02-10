@@ -72,14 +72,15 @@ func main() {
 		if err != nil {
 			return
 		}
+		opaqueBlock := types.NewOpaqueBlockFromNative(sub.Block)
 
 		req := types.BlockStoreReq{
 			Value: &types.AddBlockReq{
 				BlockToAdd: types.BlockItem{
-					BlockID:      sub.Topology.ID,
-					BlockHeight:  sub.Topology.Height,
-					Block:        *types.NewOpaqueBlockFromNative(sub.Block),
-					BlockReceipt: *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob()),
+					BlockID:     sub.Topology.ID,
+					BlockHeight: sub.Topology.Height,
+					Block:       *opaqueBlock,
+					// TODO: block receipt
 				},
 				PreviousBlockID: sub.Topology.Previous,
 			},

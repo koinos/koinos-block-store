@@ -169,15 +169,16 @@ func GetEmptyBlockID() types.Multihash {
 	return types.Multihash{ID: 0x12, Digest: vb}
 }
 
-func GetBlockBody(num uint64) *types.VariableBlob {
+func GetBlockBody(num uint64) types.OpaqueBlock {
 	greetings := []string{
 		"Hello this is block %d.",
 		"Greetings from block %d.",
 		"I like being in block %d.",
 	}
 
-	vb := types.VariableBlob([]byte(fmt.Sprintf(greetings[int(num)%len(greetings)], num)))
-	return &vb
+	body := []byte(fmt.Sprintf(greetings[int(num)%len(greetings)], num))
+	blob := types.VariableBlob(body)
+	return *types.NewOpaqueBlockFromBlob(&blob)
 }
 
 func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
@@ -189,8 +190,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		addReq.BlockToAdd.BlockID = GetBlockID(0)
 		addReq.PreviousBlockID = GetEmptyBlockID()
 		addReq.BlockToAdd.BlockHeight = 0
-		addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromBlob(GetBlockBody(0))
-		addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
+		addReq.BlockToAdd.Block = GetBlockBody(0)
+		addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceipt()
 
 		genericReq := types.BlockStoreReq{Value: &addReq}
 
@@ -234,8 +235,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			addReq.BlockToAdd.BlockID = blockID
 			addReq.PreviousBlockID = parentID
 			addReq.BlockToAdd.BlockHeight = types.BlockHeightType(tree[i][j] % 100)
-			addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromBlob(GetBlockBody(tree[i][j]))
-			addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
+			addReq.BlockToAdd.Block = GetBlockBody(tree[i][j])
+			addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceipt()
 
 			genericReq := types.BlockStoreReq{Value: &addReq}
 
@@ -346,7 +347,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				t.Error("Got nil result")
 			}
 
-			resp := result.Value.(types.GetBlocksByHeightResp)
+			resp := result.Value.(*types.GetBlocksByHeightResp)
 			if len(resp.BlockItems) != 1 {
 				t.Error("Expected result of length 1")
 			}
@@ -403,8 +404,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				getReq := types.GetBlocksByHeightReq{}
 				getReq.HeadBlockID = headID
 				getReq.NumBlocks = types.UInt32(k - j)
-				getReq.ReturnBlockBlob = false
-				getReq.ReturnReceiptBlob = false
+				getReq.ReturnBlock = false
+				getReq.ReturnReceipt = false
 				getReq.AncestorStartHeight = types.BlockHeightType(j)
 
 				genericReq := types.BlockStoreReq{Value: &getReq}
@@ -420,7 +421,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				}
 				blockSeq := treeHist[i][j:endIndex]
 
-				resp := result.Value.(types.GetBlocksByHeightResp)
+				resp := result.Value.(*types.GetBlocksByHeightResp)
 				if len(resp.BlockItems) != len(blockSeq) {
 					t.Errorf("Unexpected result length, expected %d, got %d, expect array is %v", len(resp.BlockItems), len(blockSeq), blockSeq)
 				}
@@ -451,8 +452,9 @@ func TestAddBlocks(t *testing.T) {
 
 func GetAddTransactionReq(n types.UInt64) types.AddTransactionReq {
 	vb := n.Serialize(types.NewVariableBlob())
+	tx := types.NewOpaqueTransactionFromBlob(vb)
 	m := types.Multihash{ID: 0x12, Digest: *vb}
-	r := types.AddTransactionReq{TransactionID: m, Transaction: *types.NewOpaqueTransactionFromBlob(vb)}
+	r := types.AddTransactionReq{TransactionID: m, Transaction: *tx}
 	return r
 }
 
@@ -541,18 +543,6 @@ func TestAddTransaction(t *testing.T) {
 			}
 		}
 
-		// Test adding bad transaction
-		{
-			r := types.AddTransactionReq{TransactionID: reqs[0].TransactionID, Transaction: *types.NewOpaqueTransactionFromBlob(types.NewVariableBlob())}
-			bsr := types.BlockStoreReq{Value: &r}
-			_, err := handler.HandleRequest(&bsr)
-			if _, ok := err.(*NilTransaction); !ok {
-				t.Error("Nil transaction not returning correct error.")
-			} else if err.Error() == "" {
-				t.Error("Error incorrect message:", err)
-			}
-		}
-
 		// Fetch the transactions
 		{
 			r := GetGetTransactionsByIDReq(0, 32)
@@ -565,7 +555,7 @@ func TestAddTransaction(t *testing.T) {
 				t.Error("Got nil result")
 			}
 
-			tres, ok := result.Value.(types.GetTransactionsByIDResp)
+			tres, ok := result.Value.(*types.GetTransactionsByIDResp)
 			if !ok {
 				t.Error("Result is wrong type")
 			}

@@ -119,18 +119,18 @@ func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDRe
  * Return empty block if we go past the beginning.
  */
 func (handler *RequestHandler) fillBlocks(
-	lastID *types.Multihash,
+	lastID types.Multihash,
 	numBlocks types.UInt32,
 	returnBlock types.Boolean,
-	returnReceipt types.Boolean) (*types.VectorBlockItem, error) {
+	returnReceipt types.Boolean) (types.VectorBlockItem, error) {
 
 	blockItems := types.VectorBlockItem(make([]types.BlockItem, numBlocks))
 
 	if numBlocks <= 0 {
-		return &blockItems, nil
+		return blockItems, nil
 	}
 
-	blockID := *lastID
+	//blockID := *lastID
 
 	var i types.UInt32
 	for i = 0; i < numBlocks; i++ {
@@ -140,7 +140,7 @@ func (handler *RequestHandler) fillBlocks(
 		blockItems[k].Block = *types.NewOpaqueBlockFromBlob(types.NewVariableBlob())
 		blockItems[k].BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
 
-		vbKey := blockID.Serialize(types.NewVariableBlob())
+		vbKey := lastID.Serialize(types.NewVariableBlob())
 		recordBytes, err := handler.Backend.Get(*vbKey)
 		if err != nil {
 			return nil, err
@@ -173,7 +173,7 @@ func (handler *RequestHandler) fillBlocks(
 			}
 		}
 
-		blockItems[k].BlockID = blockID
+		blockItems[k].BlockID = lastID
 		blockItems[k].BlockHeight = record.BlockHeight
 		if returnBlock {
 			blockItems[k].Block = record.Block
@@ -182,14 +182,16 @@ func (handler *RequestHandler) fillBlocks(
 			blockItems[k].BlockReceipt = record.BlockReceipt
 		}
 
-		if (record.BlockHeight == 0) || (len(record.PreviousBlockIds) == 0) {
-			return nil, &TraverseBeforeGenesisError{}
+		if len(record.PreviousBlockIds) < 1 {
+			if i+1 < numBlocks {
+				return nil, &TraverseBeforeGenesisError{}
+			}
+		} else {
+			lastID = record.PreviousBlockIds[0]
 		}
-
-		blockID = record.PreviousBlockIds[0]
 	}
 
-	return &blockItems, nil
+	return blockItems, nil
 }
 
 func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksByHeightReq) (*types.GetBlocksByHeightResp, error) {
@@ -205,7 +207,7 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 		return nil, &NotImplemented{}
 	}
 
-	resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, req.NumBlocks))
+	//resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, req.NumBlocks))
 
 	headBlockHeight, err := getBlockHeight(handler.Backend, &req.HeadBlockID)
 	if err != nil {
@@ -217,25 +219,23 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 	}
 
 	numBlocks := req.NumBlocks
-	endHeight := uint64(req.AncestorStartHeight) + uint64(numBlocks)
+	endHeight := uint64(req.AncestorStartHeight) + uint64(numBlocks-1)
 	if endHeight > uint64(headBlockHeight) {
 		endHeight = uint64(headBlockHeight) + 1
 		numBlocks = types.UInt32(endHeight - uint64(req.AncestorStartHeight))
 	}
 
-	blockID, err := getAncestorIDAtHeight(handler.Backend, &req.HeadBlockID, types.BlockHeightType(endHeight-1))
+	blockID, err := getAncestorIDAtHeight(handler.Backend, &req.HeadBlockID, types.BlockHeightType(endHeight))
 	if err != nil {
 		if _, ok := err.(*BlockHeightMismatch); !ok {
 			return nil, err
 		}
 	}
 
-	blockItems, err := handler.fillBlocks(blockID, numBlocks, req.ReturnBlock, req.ReturnReceipt)
+	resp.BlockItems, err = handler.fillBlocks(*blockID, numBlocks, req.ReturnBlock, req.ReturnReceipt)
 	if err != nil {
 		return nil, err
 	}
-
-	resp.BlockItems = *blockItems
 
 	if len(resp.BlockItems) > 0 {
 		expectedHeight := req.AncestorStartHeight
@@ -269,15 +269,14 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
  */
 func getPreviousHeights(x uint64) []uint64 {
 	// TODO:  Do we want to subtract 1 from the input and add 1 to the output, to account for the fact that initial block's height is 1?
-	x = x - 1
 	if x == 0 {
 		return []uint64{}
 	}
 
-	zeros := bits.TrailingZeros64(x)
-	result := make([]uint64, zeros+1)
-	for i := 0; i <= zeros; i++ {
-		result[i] = x - (uint64(1) << i) + 1
+	bitLen := bits.Len64(x - 1)
+	result := make([]uint64, bitLen)
+	for i := 0; i < len(result); i++ {
+		result[i] = x - (uint64(1) << i)
 	}
 
 	return result
@@ -299,19 +298,8 @@ func getPreviousHeightIndex(goal types.BlockHeightType, current types.BlockHeigh
 		return 0, 0, &BlockHeightMismatch{}
 	}
 
-	var x uint64 = uint64(current)
-	var g uint64 = uint64(goal)
-	zeros := bits.TrailingZeros64(x)
-
-	var lastH uint64 = 0
-	for i := 0; i <= zeros; i++ {
-		h := x - (uint64(1) << i)
-		if h < g {
-			return i - 1, types.BlockHeightType(lastH), nil
-		}
-		lastH = h
-	}
-	return zeros, types.BlockHeightType(lastH), nil
+	bitLen := bits.Len64(uint64(current - goal))
+	return bitLen - 1, types.BlockHeightType(uint64(current) - (1 << (bitLen - 1))), nil
 }
 
 /**
@@ -436,6 +424,9 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 
 	vbKey := record.BlockID.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
+
+	fmt.Println(vbKey)
+	fmt.Println(vbValue)
 
 	err := handler.Backend.Put(*vbKey, *vbValue)
 	if err != nil {

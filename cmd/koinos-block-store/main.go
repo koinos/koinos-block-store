@@ -84,7 +84,10 @@ func main() {
 				PreviousBlockID: sub.Topology.Previous,
 			},
 		}
-		handler.HandleRequest(&req)
+		_, err = handler.HandleRequest(&req)
+		if err != nil {
+			fmt.Println(err)
+		}
 
 		fmt.Println("Success")
 	})

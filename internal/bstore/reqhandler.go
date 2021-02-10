@@ -53,14 +53,6 @@ func (e *TransactionNotPresent) Error() string {
 	return "Transaction was not present"
 }
 
-// NilTransaction is an error type for nil transactions
-type NilTransaction struct {
-}
-
-func (e *NilTransaction) Error() string {
-	return "Transaction blob is Nil"
-}
-
 // DeserializeError is an error type for errors during deserialization
 type DeserializeError struct {
 }
@@ -172,10 +164,10 @@ func (handler *RequestHandler) fillBlocks(
 		blockItems[k].BlockID = blockID
 		blockItems[k].BlockHeight = record.BlockHeight
 		if returnBlockBlob {
-			blockItems[k].BlockBlob = record.BlockBlob
+			blockItems[k].Block = record.Block
 		}
 		if returnReceiptBlob {
-			blockItems[k].BlockReceiptBlob = record.BlockReceiptBlob
+			blockItems[k].BlockReceipt = record.BlockReceipt
 		}
 
 		if (record.BlockHeight == 0) || (len(record.PreviousBlockIds) == 0) {
@@ -220,7 +212,7 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 		}
 	}
 
-	blockItems, err := handler.fillBlocks(blockID, numBlocks, req.ReturnBlockBlob, req.ReturnReceiptBlob)
+	blockItems, err := handler.fillBlocks(blockID, numBlocks, req.ReturnBlock, req.ReturnReceipt)
 	if err != nil {
 		return nil, err
 	}
@@ -395,8 +387,8 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 
 	record.BlockID = req.BlockToAdd.BlockID
 	record.BlockHeight = req.BlockToAdd.BlockHeight
-	record.BlockBlob = req.BlockToAdd.BlockBlob
-	record.BlockReceiptBlob = req.BlockToAdd.BlockReceiptBlob
+	record.Block = req.BlockToAdd.Block
+	record.BlockReceipt = req.BlockToAdd.BlockReceipt
 
 	if req.BlockToAdd.BlockHeight > 0 {
 		previousHeights := getPreviousHeights(uint64(req.BlockToAdd.BlockHeight))
@@ -434,12 +426,8 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 }
 
 func (handler *RequestHandler) handleAddTransactionReq(req *types.AddTransactionReq) (*types.AddTransactionResp, error) {
-	if req.TransactionBlob == nil {
-		return nil, &NilTransaction{}
-	}
-
 	record := types.TransactionRecord{}
-	record.TransactionBlob = req.TransactionBlob
+	record.Transaction = req.Transaction
 
 	vbKey := req.TransactionID.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
@@ -479,7 +467,7 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 		if consumed != uint64(len(recordBytes)) {
 			return nil, &DeserializeError{}
 		}
-		resp.TransactionItems = append(resp.TransactionItems, types.TransactionItem{TransactionBlob: record.TransactionBlob})
+		resp.TransactionItems = append(resp.TransactionItems, types.TransactionItem{Transaction: record.Transaction})
 	}
 
 	return &resp, nil

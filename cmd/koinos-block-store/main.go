@@ -68,14 +68,14 @@ func main() {
 		if err != nil {
 			return
 		}
-		blockBlob, _ := json.Marshal(sub.Block)
+		opaqueBlock := types.NewOpaqueBlockFromNative(sub.Block)
 
 		req := types.BlockStoreReq{
 			Value: &types.AddBlockReq{
 				BlockToAdd: types.BlockItem{
 					BlockID:     sub.Topology.ID,
 					BlockHeight: sub.Topology.Height,
-					BlockBlob:   blockBlob,
+					Block:       *opaqueBlock,
 					// TODO: block receipt
 				},
 				PreviousBlockID: sub.Topology.Previous,

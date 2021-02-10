@@ -61,19 +61,13 @@ func TestHandleReservedRequest(t *testing.T) {
 		handler := RequestHandler{b}
 
 		testReq := types.BlockStoreReq{Value: types.NewReservedReq()}
-		result, err := handler.HandleRequest(&testReq)
-		if result != nil {
-			t.Error("Result should be nil")
-		}
-		if err == nil {
-			t.Error("Err should not be nil")
-		}
+		result := handler.HandleRequest(&testReq)
 
-		if _, ok := err.(*ReservedReqError); !ok {
-			t.Error("Err should be ReservedReqError")
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Should have errored BlockStoreError")
 		}
-
-		if err.Error() != "Reserved request is not supported" {
+		if errval.ErrorText != "Reserved request is not supported" {
 			t.Error("Unexpected error text")
 		}
 		CloseBackend(b)
@@ -167,9 +161,10 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 
 		genericReq := types.BlockStoreReq{Value: &addReq}
 
-		_, err := handler.HandleRequest(&genericReq)
-		if err != nil {
-			t.Error("Could not add block 0", err)
+		result := handler.HandleRequest(&genericReq)
+		_, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Could not add block 0")
 		}
 	}
 
@@ -217,12 +212,13 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				t.Error("Could not marshal JSON", err)
 			}
 
-			result, err := handler.HandleRequest(&genericReq)
-			if err != nil {
-				t.Error("Got error adding block:", err)
-			}
+			result := handler.HandleRequest(&genericReq)
 			if result == nil {
 				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if ok {
+				t.Error("Got error adding block:", errval.ErrorText)
 			}
 
 			getNeReq := types.GetBlocksByHeightReq{}
@@ -238,14 +234,12 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				t.Error("Could not marshal JSON", err)
 			}
 
-			result, err = handler.HandleRequest(&genericNeReq)
-			if (result != nil) || (err == nil) {
+			result = handler.HandleRequest(&genericNeReq)
+			errval, ok = result.Value.(*types.BlockStoreError)
+			if !ok {
 				t.Error("Expected error adding block")
 			} else {
-				if _, ok := err.(*BlockNotPresent); !ok {
-					t.Error("Err should be BlockNotPresent")
-				}
-				if err.Error() != "Block was not present" {
+				if errval.ErrorText != "Block was not present" {
 					t.Error("Unexpected error text")
 				}
 			}
@@ -311,12 +305,14 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				t.Error("Could not marshal JSON", err)
 			}
 
-			result, err := handler.HandleRequest(&genericReq)
-			if err != nil {
-				t.Error("Got error retrieving block:", err)
-			}
+			result := handler.HandleRequest(&genericReq)
 			if result == nil {
 				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if ok {
+				t.Error("Got error retrieving block:", errval.ErrorText)
+				t.FailNow()
 			}
 
 			resp := result.Value.(types.GetBlocksByHeightResp)
@@ -350,15 +346,17 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 
 			genericReq := types.BlockStoreReq{Value: &getReq}
 
-			result, err := handler.HandleRequest(&genericReq)
-			if err == nil {
+			result := handler.HandleRequest(&genericReq)
+			if result == nil {
+				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if !ok {
 				t.Error("Unexpectedly got non-error result attempting to retrieve descendant block:", result)
-			}
-			if _, ok := err.(*BlockHeightMismatch); !ok {
-				t.Error("Err should be BlockHeightMismatch")
-			}
-			if err.Error() != "Block height mismatch" {
-				t.Error("Unexpected error text")
+			} else {
+				if errval.ErrorText != "Block height mismatch" {
+					t.Error("Unexpected error text")
+				}
 			}
 		}
 	}
@@ -382,9 +380,13 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 
 				genericReq := types.BlockStoreReq{Value: &getReq}
 
-				result, err := handler.HandleRequest(&genericReq)
-				if err != nil {
-					t.Error("GetBlocksByHeightReq returned error: " + err.Error())
+				result := handler.HandleRequest(&genericReq)
+				if result == nil {
+					t.Error("Got nil result")
+				}
+				errval, ok := result.Value.(*types.BlockStoreError)
+				if ok {
+					t.Error("GetBlocksByHeightReq returned error:", errval.ErrorText)
 				}
 
 				endIndex := k
@@ -492,25 +494,26 @@ func TestAddTransaction(t *testing.T) {
 		handler := RequestHandler{b}
 		for _, req := range reqs {
 			bsr := types.BlockStoreReq{Value: &req}
-
-			result, err := handler.HandleRequest(&bsr)
-			if err != nil {
-				t.Error("Got error adding transaction:", err)
-			}
+			result := handler.HandleRequest(&bsr)
 			if result == nil {
 				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if ok {
+				t.Error("Got error adding transaction:", errval.ErrorText)
 			}
 		}
 
 		// Test adding an already existing transaction
 		{
 			bsr := types.BlockStoreReq{Value: &reqs[0]}
-			result, err := handler.HandleRequest(&bsr)
-			if err != nil {
-				t.Error("Got error adding transaction:", err)
-			}
+			result := handler.HandleRequest(&bsr)
 			if result == nil {
 				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if ok {
+				t.Error("Got error adding transaction:", errval.ErrorText)
 			}
 		}
 
@@ -518,11 +521,15 @@ func TestAddTransaction(t *testing.T) {
 		{
 			r := types.AddTransactionReq{TransactionID: reqs[0].TransactionID, Transaction: *types.NewOpaqueTransactionFromBlob(types.NewVariableBlob())}
 			bsr := types.BlockStoreReq{Value: &r}
-			_, err := handler.HandleRequest(&bsr)
-			if _, ok := err.(*NilTransaction); !ok {
-				t.Error("Nil transaction not returning correct error.")
-			} else if err.Error() == "" {
-				t.Error("Error incorrect message:", err)
+			result := handler.HandleRequest(&bsr)
+			if result == nil {
+				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if !ok {
+				t.Error("Did not recieve expected error")
+			} else if errval.ErrorText == "Transaction blob is Nil" {
+				t.Error("Did not recieve expected error text")
 			}
 		}
 
@@ -530,12 +537,13 @@ func TestAddTransaction(t *testing.T) {
 		{
 			r := GetGetTransactionsByIDReq(0, 32)
 			bsr := types.BlockStoreReq{Value: &r}
-			result, err := handler.HandleRequest(&bsr)
-			if err != nil {
-				t.Error("Error fetching transactions:", err)
-			}
+			result := handler.HandleRequest(&bsr)
 			if result == nil {
 				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if ok {
+				t.Error("Error fetching transactions:", errval.ErrorText)
 			}
 
 			tres, ok := result.Value.(types.GetTransactionsByIDResp)
@@ -554,11 +562,15 @@ func TestAddTransaction(t *testing.T) {
 		{
 			r := GetGetTransactionsByIDReq(64, 1)
 			bsr := types.BlockStoreReq{Value: &r}
-			_, err := handler.HandleRequest(&bsr)
-			if _, ok := err.(*TransactionNotPresent); !ok {
-				t.Error("Did not recieve expected TransactionNotPresent error")
-			} else if err.Error() == "" {
-				t.Error("Error incorrect message:", err)
+			result := handler.HandleRequest(&bsr)
+			if result == nil {
+				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if !ok {
+				t.Error("Did not recieve expected error")
+			} else if errval.ErrorText != "Transaction was not present" {
+				t.Error("Did not recieve expected error text")
 			}
 		}
 
@@ -570,9 +582,12 @@ func TestAddTransaction(t *testing.T) {
 		handler := RequestHandler{&TxnErrorBackend{}}
 		r := GetAddTransactionReq(2)
 		tr := types.BlockStoreReq{Value: &r}
-		_, err := handler.HandleRequest(&tr)
-		if err == nil {
-			t.Error("Should have errored on transaction add, but did not")
+		result := handler.HandleRequest(&tr)
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Did not recieve expected error")
+		} else if errval.ErrorText != "" {
+			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
 
@@ -581,9 +596,12 @@ func TestAddTransaction(t *testing.T) {
 		handler := RequestHandler{&TxnErrorBackend{}}
 		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreReq{Value: &r}
-		_, err := handler.HandleRequest(&tr)
-		if err == nil {
-			t.Error("Should have errored on transaction get, but did not")
+		result := handler.HandleRequest(&tr)
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Did not recieve expected error")
+		} else if errval.ErrorText != "" {
+			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
 
@@ -592,9 +610,12 @@ func TestAddTransaction(t *testing.T) {
 		handler := RequestHandler{&TxnBadBackend{}}
 		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreReq{Value: &r}
-		_, err := handler.HandleRequest(&tr)
-		if err == nil {
-			t.Error("Should have errored on transaction get, but did not")
+		result := handler.HandleRequest(&tr)
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Did not recieve expected error")
+		} else if errval.ErrorText != "" {
+			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
 
@@ -603,9 +624,12 @@ func TestAddTransaction(t *testing.T) {
 		handler := RequestHandler{&TxnLongBackend{}}
 		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreReq{Value: &r}
-		_, err := handler.HandleRequest(&tr)
-		if err == nil {
-			t.Error("Should have errored on transaction get, but did not")
+		result := handler.HandleRequest(&tr)
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Did not recieve expected error")
+		} else if errval.ErrorText != "" {
+			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
 }

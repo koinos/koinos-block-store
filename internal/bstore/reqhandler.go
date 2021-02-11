@@ -283,8 +283,7 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
  *
  */
 func getPreviousHeights(x uint64) []uint64 {
-	// TODO:  Do we want to subtract 1 from the input and add 1 to the output, to account for the fact that initial block's height is 1?
-	if x <= 0 {
+	if x <= 1 {
 		return []uint64{}
 	}
 
@@ -561,7 +560,7 @@ func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) *types.Bl
 	if err != nil {
 		log.Println("Error handling request")
 		b, _ := json.Marshal(req)
-		log.Println("Request: ", b)
+		log.Println("Request: ", string(b))
 		log.Println("Error: ", err)
 		response.Value = &types.BlockStoreError{
 			ErrorText: types.String(err.Error()),

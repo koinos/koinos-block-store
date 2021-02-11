@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"log"
 	"math/bits"
 
 	types "github.com/koinos/koinos-types-golang"
@@ -178,8 +178,8 @@ func (handler *RequestHandler) fillBlocks(
 
 		consumed, record, err := types.DeserializeBlockRecord(&vbValue)
 		if err != nil {
-			fmt.Println("Couldn't deserialize block record")
-			fmt.Println("vb: ", recordBytes)
+			log.Println("Couldn't deserialize block record")
+			log.Println("vb: ", recordBytes)
 			return nil, err
 		}
 		if consumed != uint64(len(recordBytes)) {
@@ -190,8 +190,8 @@ func (handler *RequestHandler) fillBlocks(
 		if i > 0 {
 			expectedHeight := blockItems[k+1].BlockHeight - 1
 			if record.BlockHeight != expectedHeight {
-				fmt.Println("record height:", record.BlockHeight)
-				fmt.Println("expect height:", expectedHeight)
+				log.Println("record height:", record.BlockHeight)
+				log.Println("expect height:", expectedHeight)
 				return nil, &UnexpectedHeightError{}
 			}
 		}
@@ -218,9 +218,6 @@ func (handler *RequestHandler) fillBlocks(
 }
 
 func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksByHeightReq) (*types.GetBlocksByHeightResp, error) {
-	b, _ := json.Marshal(req)
-	fmt.Println(string(b))
-
 	resp := types.NewGetBlocksByHeightResp()
 
 	if req.NumBlocks <= 0 {
@@ -258,8 +255,8 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 	if len(resp.BlockItems) > 0 {
 		expectedHeight := req.AncestorStartHeight
 		if resp.BlockItems[0].BlockHeight != expectedHeight {
-			fmt.Println("start  height:", resp.BlockItems[0].BlockHeight)
-			fmt.Println("expect height:", expectedHeight)
+			log.Println("start  height:", resp.BlockItems[0].BlockHeight)
+			log.Println("expect height:", expectedHeight)
 			return nil, &UnexpectedHeightError{}
 		}
 	}
@@ -287,14 +284,16 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
  */
 func getPreviousHeights(x uint64) []uint64 {
 	// TODO:  Do we want to subtract 1 from the input and add 1 to the output, to account for the fact that initial block's height is 1?
-	if x == 0 {
+	if x <= 0 {
 		return []uint64{}
 	}
+
+	x = x - 1
 
 	zeros := bits.TrailingZeros64(x)
 	result := make([]uint64, zeros+1)
 	for i := 0; i <= zeros; i++ {
-		result[i] = x - (uint64(1) << i)
+		result[i] = x - (uint64(1) << i) + 1
 	}
 
 	return result
@@ -316,19 +315,19 @@ func getPreviousHeightIndex(goal types.BlockHeightType, current types.BlockHeigh
 		return 0, 0, &BlockHeightMismatch{}
 	}
 
-	var x uint64 = uint64(current)
-	var g uint64 = uint64(goal)
+	var x uint64 = uint64(current) - 1
+	var g uint64 = uint64(goal) - 1
 	zeros := bits.TrailingZeros64(x)
 
 	var lastH uint64 = 0
 	for i := 0; i <= zeros; i++ {
 		h := x - (uint64(1) << i)
 		if h < g {
-			return i - 1, types.BlockHeightType(lastH), nil
+			return i - 1, types.BlockHeightType(lastH + 1), nil
 		}
 		lastH = h
 	}
-	return zeros, types.BlockHeightType(lastH), nil
+	return zeros, types.BlockHeightType(lastH + 1), nil
 }
 
 /**
@@ -350,8 +349,8 @@ func getBlockHeight(backend BlockStoreBackend, blockID *types.Multihash) (types.
 
 	consumed, record, err := types.DeserializeBlockRecord(&vbValue)
 	if err != nil {
-		fmt.Println("Couldn't deserialize block record")
-		fmt.Println("vb: ", recordBytes)
+		log.Println("Couldn't deserialize block record")
+		log.Println("vb: ", recordBytes)
 		return 0, err
 	}
 	if consumed != uint64(len(recordBytes)) {
@@ -382,16 +381,16 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 
 		consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))
 		if err != nil {
-			fmt.Println("Couldn't deserialize block record")
-			fmt.Println("vb: ", recordBytes)
+			log.Println("Couldn't deserialize block record")
+			log.Println("vb: ", recordBytes)
 			return nil, err
 		}
 		if consumed != uint64(len(recordBytes)) {
 			return nil, &DeserializeError{}
 		}
 		if hasExpectedHeight && (record.BlockHeight != expectedHeight) {
-			fmt.Println("record height:", record.BlockHeight)
-			fmt.Println("expect height:", expectedHeight)
+			log.Println("record height:", record.BlockHeight)
+			log.Println("expect height:", expectedHeight)
 			return nil, &UnexpectedHeightError{}
 		}
 
@@ -418,9 +417,6 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 }
 
 func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types.AddBlockResp, error) {
-
-	b, _ := json.Marshal(req)
-	fmt.Println(string(b))
 	record := types.BlockRecord{}
 
 	record.BlockID = req.BlockToAdd.BlockID
@@ -453,9 +449,6 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 
 	vbKey := record.BlockID.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
-
-	fmt.Println(vbKey)
-	fmt.Println(vbValue)
 
 	err := handler.Backend.Put(*vbKey, *vbValue)
 	if err != nil {
@@ -494,15 +487,15 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 			return nil, err
 		}
 		if len(recordBytes) == 0 {
-			fmt.Println("Transaction not present, key is", hex.EncodeToString(tid.Digest))
+			log.Println("Transaction not present, key is", hex.EncodeToString(tid.Digest))
 			return nil, &TransactionNotPresent{}
 		}
 
 		vbValue := types.VariableBlob(recordBytes)
 		consumed, record, err := types.DeserializeTransactionRecord(&vbValue)
 		if err != nil {
-			fmt.Println("Couldn't deserialize transaction record")
-			fmt.Println("vb: ", recordBytes)
+			log.Println("Couldn't deserialize transaction record")
+			log.Println("vb: ", recordBytes)
 			return nil, err
 		}
 		if consumed != uint64(len(recordBytes)) {
@@ -516,8 +509,6 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 
 // HandleRequest handles and routes blockstore requests
 func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) *types.BlockStoreResp {
-	b, _ := json.Marshal(req)
-	fmt.Println(string(b))
 	var response types.BlockStoreResp
 	var err error
 	switch v := req.Value.(type) {
@@ -568,6 +559,10 @@ func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) *types.Bl
 	}
 
 	if err != nil {
+		log.Println("Error handling request")
+		b, _ := json.Marshal(req)
+		log.Println("Request: ", b)
+		log.Println("Error: ", err)
 		response.Value = &types.BlockStoreError{
 			ErrorText: types.String(err.Error()),
 		}

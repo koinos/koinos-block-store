@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"flag"
-	"fmt"
+	"log"
 	"time"
 
 	"github.com/dgraph-io/badger"
@@ -26,7 +26,7 @@ func debugTesting() {
 	blockID := types.Multihash{ID: 0x12, Digest: types.VariableBlob(h)}
 	testReq := types.BlockStoreReq{Value: &types.GetBlocksByIDReq{BlockID: types.VectorMultihash{blockID}}}
 	testReqJSON, _ := testReq.MarshalJSON()
-	fmt.Println(string(testReqJSON))
+	log.Println(string(testReqJSON))
 }
 
 func main() {
@@ -60,31 +60,27 @@ func main() {
 		return outputBytes, err
 	})
 	mq.SetBroadcastHandler("koinos.block.accept", func(topic string, data []byte) {
-		fmt.Println("Received message on koinos.block.accept")
-
-		fmt.Println(string(data))
-
 		sub := types.NewBlockSubmission()
 		err := json.Unmarshal(data, sub)
 		if err != nil {
 			return
 		}
-		opaqueBlock := types.NewOpaqueBlockFromNative(sub.Block)
 
 		req := types.BlockStoreReq{
 			Value: &types.AddBlockReq{
 				BlockToAdd: types.BlockItem{
-					BlockID:     sub.Topology.ID,
-					BlockHeight: sub.Topology.Height,
-					Block:       *opaqueBlock,
-					// TODO: block receipt
+					BlockID:      sub.Topology.ID,
+					BlockHeight:  sub.Topology.Height,
+					Block:        *types.NewOpaqueBlockFromNative(sub.Block),
+					BlockReceipt: *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob()),
 				},
 				PreviousBlockID: sub.Topology.Previous,
 			},
 		}
-		_ = handler.HandleRequest(&req)
+		serID, _ := json.Marshal(sub.Topology.ID)
+		log.Printf("Received message on koinos.block.accept - height: %v, id: %v", sub.Topology.Height, string(serID))
 
-		fmt.Println("Success")
+		_ = handler.HandleRequest(&req)
 	})
 	mq.Start()
 	for {

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
-	"time"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
@@ -83,7 +85,10 @@ func main() {
 		_ = handler.HandleRequest(&req)
 	})
 	mq.Start()
-	for {
-		time.Sleep(time.Duration(1))
-	}
+
+	// Wait for a SIGINT or SIGTERM signal
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	<-ch
+	log.Println("Shutting down node...")
 }

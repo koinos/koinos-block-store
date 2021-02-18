@@ -2,7 +2,6 @@ package bstore
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/bits"
@@ -187,8 +186,6 @@ func (handler *RequestHandler) fillBlocks(
 }
 
 func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksByHeightReq) (*types.GetBlocksByHeightResp, error) {
-	b, _ := json.Marshal(req)
-	fmt.Println(string(b))
 
 	resp := types.NewGetBlocksByHeightResp()
 
@@ -393,8 +390,6 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 
 func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types.AddBlockResp, error) {
 
-	b, _ := json.Marshal(req)
-	fmt.Println(string(b))
 	record := types.BlockRecord{}
 
 	record.BlockID = req.BlockToAdd.BlockID
@@ -428,9 +423,6 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 
 	vbKey := record.BlockID.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
-
-	fmt.Println(vbKey)
-	fmt.Println(vbValue)
 
 	err := handler.Backend.Put(*vbKey, *vbValue)
 	if err != nil {
@@ -492,8 +484,6 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 
 // HandleRequest handles and routes blockstore requests
 func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) *types.BlockStoreResp {
-	b, _ := json.Marshal(req)
-	fmt.Println(string(b))
 	var response types.BlockStoreResp
 	var err error
 	switch v := req.Value.(type) {

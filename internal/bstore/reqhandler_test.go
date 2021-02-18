@@ -80,33 +80,6 @@ func TestHandleReservedRequest(t *testing.T) {
 	}
 }
 
-type UnknownReq struct {
-}
-
-func TestHandleUnknownRequestType(t *testing.T) {
-	for bType := range backendTypes {
-		b := NewBackend(bType)
-		handler := RequestHandler{b}
-
-		testReq := types.BlockStoreReq{Value: UnknownReq{}}
-		result, err := handler.HandleRequest(&testReq)
-		if result != nil {
-			t.Error("Result should be nil")
-		}
-		if err == nil {
-			t.Error("Err should not be nil")
-		}
-
-		if _, ok := err.(*UnknownReqError); !ok {
-			t.Error("Err should be UnknownReqError")
-		}
-		if err.Error() != "Unknown request type" {
-			t.Error("Unexpected error text")
-		}
-		CloseBackend(b)
-	}
-}
-
 func SliceEqual(a []uint64, b []uint64) bool {
 	n := len(a)
 	if len(b) != n {
@@ -403,8 +376,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				getReq := types.GetBlocksByHeightReq{}
 				getReq.HeadBlockID = headID
 				getReq.NumBlocks = types.UInt32(k - j)
-				getReq.ReturnBlockBlob = false
-				getReq.ReturnReceiptBlob = false
+				getReq.ReturnBlock = false
+				getReq.ReturnReceipt = false
 				getReq.AncestorStartHeight = types.BlockHeightType(j)
 
 				genericReq := types.BlockStoreReq{Value: &getReq}

@@ -213,8 +213,8 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 	numBlocks := req.NumBlocks
 	endHeight := uint64(req.AncestorStartHeight) + uint64(numBlocks-1)
 	if endHeight > uint64(headBlockHeight) {
-		endHeight = uint64(headBlockHeight) + 1
-		numBlocks = types.UInt32(endHeight - uint64(req.AncestorStartHeight))
+		endHeight = uint64(headBlockHeight)
+		numBlocks = types.UInt32(endHeight - uint64(req.AncestorStartHeight) + 1)
 	}
 
 	blockID, err := getAncestorIDAtHeight(handler.Backend, &req.HeadBlockID, types.BlockHeightType(endHeight))

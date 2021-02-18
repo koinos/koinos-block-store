@@ -530,7 +530,7 @@ func TestAddTransaction(t *testing.T) {
 				t.Error("Error fetching transactions:", errval.ErrorText)
 			}
 
-			tres, ok := result.Value.(types.GetTransactionsByIDResp)
+			tres, ok := result.Value.(*types.GetTransactionsByIDResp)
 			if !ok {
 				t.Error("Result is wrong type")
 			}
@@ -570,7 +570,7 @@ func TestAddTransaction(t *testing.T) {
 		errval, ok := result.Value.(*types.BlockStoreError)
 		if !ok {
 			t.Error("Did not recieve expected error")
-		} else if errval.ErrorText != "" {
+		} else if errval.ErrorText != "Error on put" {
 			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
@@ -584,7 +584,7 @@ func TestAddTransaction(t *testing.T) {
 		errval, ok := result.Value.(*types.BlockStoreError)
 		if !ok {
 			t.Error("Did not recieve expected error")
-		} else if errval.ErrorText != "" {
+		} else if errval.ErrorText != "Error on get" {
 			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
@@ -598,7 +598,7 @@ func TestAddTransaction(t *testing.T) {
 		errval, ok := result.Value.(*types.BlockStoreError)
 		if !ok {
 			t.Error("Did not recieve expected error")
-		} else if errval.ErrorText != "" {
+		} else if errval.ErrorText != "Could not deserialize variable blob size" {
 			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
@@ -612,7 +612,7 @@ func TestAddTransaction(t *testing.T) {
 		errval, ok := result.Value.(*types.BlockStoreError)
 		if !ok {
 			t.Error("Did not recieve expected error")
-		} else if errval.ErrorText != "" {
+		} else if errval.ErrorText != "Could not deserialize block" {
 			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}

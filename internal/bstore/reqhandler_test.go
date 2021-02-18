@@ -315,7 +315,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				t.FailNow()
 			}
 
-			resp := result.Value.(types.GetBlocksByHeightResp)
+			resp := result.Value.(*types.GetBlocksByHeightResp)
 			if len(resp.BlockItems) != 1 {
 				t.Error("Expected result of length 1")
 			}
@@ -395,7 +395,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				}
 				blockSeq := treeHist[i][j:endIndex]
 
-				resp := result.Value.(types.GetBlocksByHeightResp)
+				resp := result.Value.(*types.GetBlocksByHeightResp)
 				if len(resp.BlockItems) != len(blockSeq) {
 					t.Errorf("Unexpected result length, expected %d, got %d, expect array is %v", len(resp.BlockItems), len(blockSeq), blockSeq)
 				}

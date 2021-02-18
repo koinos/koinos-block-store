@@ -517,22 +517,6 @@ func TestAddTransaction(t *testing.T) {
 			}
 		}
 
-		// Test adding bad transaction
-		{
-			r := types.AddTransactionReq{TransactionID: reqs[0].TransactionID, Transaction: *types.NewOpaqueTransactionFromBlob(types.NewVariableBlob())}
-			bsr := types.BlockStoreReq{Value: &r}
-			result := handler.HandleRequest(&bsr)
-			if result == nil {
-				t.Error("Got nil result")
-			}
-			errval, ok := result.Value.(*types.BlockStoreError)
-			if !ok {
-				t.Error("Did not recieve expected error")
-			} else if errval.ErrorText == "Transaction blob is Nil" {
-				t.Error("Did not recieve expected error text")
-			}
-		}
-
 		// Fetch the transactions
 		{
 			r := GetGetTransactionsByIDReq(0, 32)

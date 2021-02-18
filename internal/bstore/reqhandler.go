@@ -55,14 +55,6 @@ func (e *TransactionNotPresent) Error() string {
 	return "Transaction was not present"
 }
 
-// NilTransaction is an error type for nil transactions
-type NilTransaction struct {
-}
-
-func (e *NilTransaction) Error() string {
-	return "Transaction blob is Nil"
-}
-
 // DeserializeError is an error type for errors during deserialization
 type DeserializeError struct {
 }

@@ -162,9 +162,9 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		genericReq := types.BlockStoreReq{Value: &addReq}
 
 		result := handler.HandleRequest(&genericReq)
-		_, ok := result.Value.(*types.BlockStoreError)
-		if !ok {
-			t.Error("Could not add block 0")
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if ok {
+			t.Error("Could not add block 0: ", errval.ErrorText)
 		}
 	}
 

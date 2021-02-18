@@ -2,6 +2,7 @@ package bstore
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/bits"
 
@@ -53,14 +54,6 @@ func (e *TransactionNotPresent) Error() string {
 	return "Transaction was not present"
 }
 
-// NilTransaction is an error type for nil transactions
-type NilTransaction struct {
-}
-
-func (e *NilTransaction) Error() string {
-	return "Transaction blob is Nil"
-}
-
 // DeserializeError is an error type for errors during deserialization
 type DeserializeError struct {
 }
@@ -75,6 +68,14 @@ type UnexpectedHeightError struct {
 
 func (e *UnexpectedHeightError) Error() string {
 	return "Unexpected height (corrupt block store?)"
+}
+
+// TraverseBeforeGenesisError is an error type when the blockchain attempts to traverse before genesis
+type TraverseBeforeGenesisError struct {
+}
+
+func (e *TraverseBeforeGenesisError) Error() string {
+	return "Attempt to traverse before genesis"
 }
 
 // NotImplemented is an error type for unimplemented types
@@ -98,35 +99,163 @@ func (handler *RequestHandler) handleReservedReq(req *types.ReservedReq) (*types
 }
 
 func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDReq) (*types.GetBlocksByIDResp, error) {
+	// TODO implement this
 	return types.NewGetBlocksByIDResp(), nil
 }
 
+/**
+ * Internal helper method to fill blocks.
+ *
+ * Given a block ID and height, return the block and the previous numBlocks-1 blocks.
+ * Return empty block if we go past the beginning.
+ */
+func (handler *RequestHandler) fillBlocks(
+	lastID types.Multihash,
+	numBlocks types.UInt32,
+	returnBlock types.Boolean,
+	returnReceipt types.Boolean) (types.VectorBlockItem, error) {
+
+	blockItems := types.VectorBlockItem(make([]types.BlockItem, numBlocks))
+
+	if numBlocks <= 0 {
+		return blockItems, nil
+	}
+
+	//blockID := *lastID
+
+	var i types.UInt32
+	for i = 0; i < numBlocks; i++ {
+		// k is the index into the array
+		k := numBlocks - i - 1
+
+		blockItems[k].Block = *types.NewOpaqueBlockFromBlob(types.NewVariableBlob())
+		blockItems[k].BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
+
+		vbKey := lastID.Serialize(types.NewVariableBlob())
+		recordBytes, err := handler.Backend.Get(*vbKey)
+		if err != nil {
+			return nil, err
+		}
+		if len(recordBytes) == 0 {
+			// If block does not exist, return a default-initialized block.
+			continue
+		}
+
+		// TODO is there a way to avoid this copy?
+		var vbValue types.VariableBlob = types.VariableBlob(recordBytes)
+
+		consumed, record, err := types.DeserializeBlockRecord(&vbValue)
+		if err != nil {
+			fmt.Println("Couldn't deserialize block record")
+			fmt.Println("vb: ", recordBytes)
+			return nil, err
+		}
+		if consumed != uint64(len(recordBytes)) {
+			return nil, &DeserializeError{}
+		}
+
+		// Blocks are expected to have decreasing height
+		if i > 0 {
+			expectedHeight := blockItems[k+1].BlockHeight - 1
+			if record.BlockHeight != expectedHeight {
+				fmt.Println("record height:", record.BlockHeight)
+				fmt.Println("expect height:", expectedHeight)
+				return nil, &UnexpectedHeightError{}
+			}
+		}
+
+		blockItems[k].BlockID = lastID
+		blockItems[k].BlockHeight = record.BlockHeight
+		if returnBlock {
+			blockItems[k].Block = record.Block
+		}
+		if returnReceipt {
+			blockItems[k].BlockReceipt = record.BlockReceipt
+		}
+
+		if len(record.PreviousBlockIds) < 1 {
+			if i+1 < numBlocks {
+				return nil, &TraverseBeforeGenesisError{}
+			}
+		} else {
+			lastID = record.PreviousBlockIds[0]
+		}
+	}
+
+	return blockItems, nil
+}
+
 func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksByHeightReq) (*types.GetBlocksByHeightResp, error) {
-	if req.NumBlocks != 1 {
-		return nil, &NotImplemented{}
+
+	resp := types.NewGetBlocksByHeightResp()
+
+	if req.NumBlocks <= 0 {
+		return resp, nil
 	}
-	if req.ReturnBlockBlob {
-		return nil, &NotImplemented{}
-	}
-	if req.ReturnReceiptBlob {
+	if req.ReturnReceipt {
 		return nil, &NotImplemented{}
 	}
 
-	ancestorID, err := getAncestorIDAtHeight(handler.Backend, &req.HeadBlockID, req.AncestorStartHeight)
+	//resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, req.NumBlocks))
+
+	headBlockHeight, err := getBlockHeight(handler.Backend, &req.HeadBlockID)
 	if err != nil {
 		return nil, err
 	}
 
-	resp := types.GetBlocksByHeightResp{}
-	resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, 1))
-	resp.BlockItems[0].BlockID = *ancestorID
-	resp.BlockItems[0].BlockHeight = req.AncestorStartHeight
-	resp.BlockItems[0].BlockBlob = []byte{}
-	resp.BlockItems[0].BlockReceiptBlob = []byte{}
+	if req.AncestorStartHeight > headBlockHeight {
+		return nil, &BlockHeightMismatch{}
+	}
 
-	return &resp, nil
+	numBlocks := req.NumBlocks
+	endHeight := uint64(req.AncestorStartHeight) + uint64(numBlocks-1)
+	if endHeight > uint64(headBlockHeight) {
+		endHeight = uint64(headBlockHeight)
+		numBlocks = types.UInt32(endHeight - uint64(req.AncestorStartHeight) + 1)
+	}
+
+	blockID, err := getAncestorIDAtHeight(handler.Backend, &req.HeadBlockID, types.BlockHeightType(endHeight))
+	if err != nil {
+		if _, ok := err.(*BlockHeightMismatch); !ok {
+			return nil, err
+		}
+	}
+
+	resp.BlockItems, err = handler.fillBlocks(*blockID, numBlocks, req.ReturnBlock, req.ReturnReceipt)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.BlockItems) > 0 {
+		expectedHeight := req.AncestorStartHeight
+		if resp.BlockItems[0].BlockHeight != expectedHeight {
+			fmt.Println("start  height:", resp.BlockItems[0].BlockHeight)
+			fmt.Println("expect height:", expectedHeight)
+			return nil, &UnexpectedHeightError{}
+		}
+	}
+
+	return resp, nil
 }
 
+/**
+ * Compute the array of previous heights for a given height.
+ *
+ * This is a helper function used to implement the skip-list indexing scheme used by getAncestorIDAtHeight().
+ *
+ * - Block n has a pointer to block n-1.
+ * - If 2 | n, block n has a pointer to block n-2.
+ * - If 4 | n, block n has a pointer to block n-4.
+ * - If 8 | n, block n has a pointer to block n-8.
+ *
+ * In general, if 2^k | n, then getPreviousHeights(n)[k] = n-2^k.
+ *
+ * This has the following properties:
+ *
+ * - On average, each block has a pointer to 2 previous blocks, so average-case use O(1) storage per block.
+ * - The path connecting any two blocks is at most O(log(dh)) where dh is the difference in block heights.
+ *
+ */
 func getPreviousHeights(x uint64) []uint64 {
 	// TODO:  Do we want to subtract 1 from the input and add 1 to the output, to account for the fact that initial block's height is 1?
 	if x == 0 {
@@ -145,7 +274,7 @@ func getPreviousHeights(x uint64) []uint64 {
 /**
  * Get the index into the previous height array when searching for the given height.
  *
- * Let a = GetPreviousHeights(h).
+ * Let a = getPreviousHeights(h).
  * Let i, y, err = getPreviousHeightIndex(goal, h, x).
  * Then i is the greatest integer that satisfies a[i] >= h, and y is a[i].
  *
@@ -173,6 +302,36 @@ func getPreviousHeightIndex(goal types.BlockHeightType, current types.BlockHeigh
 	return zeros, types.BlockHeightType(lastH), nil
 }
 
+/**
+ * Fetch a block by ID and then return its height.
+ */
+func getBlockHeight(backend BlockStoreBackend, blockID *types.Multihash) (types.BlockHeightType, error) {
+	vbKey := blockID.Serialize(types.NewVariableBlob())
+
+	recordBytes, err := backend.Get(*vbKey)
+	if err != nil {
+		return 0, err
+	}
+	if len(recordBytes) == 0 {
+		return 0, &BlockNotPresent{}
+	}
+
+	// TODO is there a way to avoid this copy?
+	var vbValue types.VariableBlob = types.VariableBlob(recordBytes)
+
+	consumed, record, err := types.DeserializeBlockRecord(&vbValue)
+	if err != nil {
+		fmt.Println("Couldn't deserialize block record")
+		fmt.Println("vb: ", recordBytes)
+		return 0, err
+	}
+	if consumed != uint64(len(recordBytes)) {
+		return 0, &DeserializeError{}
+	}
+
+	return record.BlockHeight, nil
+}
+
 func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, height types.BlockHeightType) (*types.Multihash, error) {
 
 	var expectedHeight types.BlockHeightType
@@ -190,9 +349,9 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 		}
 
 		// TODO is there a way to avoid this copy?
-		var vbValue types.VariableBlob = types.VariableBlob(recordBytes)
+		//var vbValue types.VariableBlob = types.VariableBlob(recordBytes)
 
-		consumed, record, err := types.DeserializeBlockRecord(&vbValue)
+		consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))
 		if err != nil {
 			fmt.Println("Couldn't deserialize block record")
 			fmt.Println("vb: ", recordBytes)
@@ -235,10 +394,10 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 
 	record.BlockID = req.BlockToAdd.BlockID
 	record.BlockHeight = req.BlockToAdd.BlockHeight
-	record.BlockBlob = req.BlockToAdd.BlockBlob
-	record.BlockReceiptBlob = req.BlockToAdd.BlockReceiptBlob
+	record.Block = req.BlockToAdd.Block
+	record.BlockReceipt = req.BlockToAdd.BlockReceipt
 
-	if req.BlockToAdd.BlockHeight > 0 {
+	if req.BlockToAdd.BlockHeight > 1 {
 		previousHeights := getPreviousHeights(uint64(req.BlockToAdd.BlockHeight))
 
 		record.PreviousBlockIds = make([]types.Multihash, len(previousHeights))
@@ -258,7 +417,8 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 			}
 		}
 	} else {
-		record.PreviousBlockIds = make([]types.Multihash, 0)
+		record.PreviousBlockIds = make([]types.Multihash, 1)
+		record.PreviousBlockIds[0] = req.PreviousBlockID
 	}
 
 	vbKey := record.BlockID.Serialize(types.NewVariableBlob())
@@ -274,12 +434,9 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 }
 
 func (handler *RequestHandler) handleAddTransactionReq(req *types.AddTransactionReq) (*types.AddTransactionResp, error) {
-	if req.TransactionBlob == nil {
-		return nil, &NilTransaction{}
-	}
 
 	record := types.TransactionRecord{}
-	record.TransactionBlob = req.TransactionBlob
+	record.Transaction = req.Transaction
 
 	vbKey := req.TransactionID.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
@@ -319,57 +476,68 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 		if consumed != uint64(len(recordBytes)) {
 			return nil, &DeserializeError{}
 		}
-		resp.TransactionItems = append(resp.TransactionItems, types.TransactionItem{TransactionBlob: record.TransactionBlob})
+		resp.TransactionItems = append(resp.TransactionItems, types.TransactionItem{Transaction: record.Transaction})
 	}
 
 	return &resp, nil
 }
 
 // HandleRequest handles and routes blockstore requests
-func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) (*types.BlockStoreResp, error) {
-	switch req.Value.(type) {
+func (handler *RequestHandler) HandleRequest(req *types.BlockStoreReq) *types.BlockStoreResp {
+	var response types.BlockStoreResp
+	var err error
+	switch v := req.Value.(type) {
 	case *types.ReservedReq:
-		v := req.Value.(*types.ReservedReq)
-		result, err := handler.handleReservedReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.ReservedResp
+		result, err = handler.handleReservedReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: result}, nil
+		break
 	case *types.GetBlocksByIDReq:
-		v := req.Value.(*types.GetBlocksByIDReq)
-		result, err := handler.handleGetBlocksByIDReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.GetBlocksByIDResp
+		result, err = handler.handleGetBlocksByIDReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: result}, nil
+		break
 	case *types.GetBlocksByHeightReq:
-		v := req.Value.(*types.GetBlocksByHeightReq)
-		result, err := handler.handleGetBlocksByHeightReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.GetBlocksByHeightResp
+		result, err = handler.handleGetBlocksByHeightReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: result}, nil
+		break
 	case *types.AddBlockReq:
-		v := req.Value.(*types.AddBlockReq)
-		result, err := handler.handleAddBlockReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.AddBlockResp
+		result, err = handler.handleAddBlockReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: result}, nil
+		break
 	case *types.AddTransactionReq:
-		v := req.Value.(*types.AddTransactionReq)
-		result, err := handler.handleAddTransactionReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.AddTransactionResp
+		result, err = handler.handleAddTransactionReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: result}, nil
+		break
 	case *types.GetTransactionsByIDReq:
-		v := req.Value.(*types.GetTransactionsByIDReq)
-		result, err := handler.handleGetTransactionsByIDReq(v)
-		if err != nil {
-			return nil, err
+		var result *types.GetTransactionsByIDResp
+		result, err = handler.handleGetTransactionsByIDReq(v)
+		if err == nil {
+			response.Value = result
 		}
-		return &types.BlockStoreResp{Value: result}, nil
+		break
+	default:
+		err = errors.New("Unknown request")
 	}
-	return nil, &UnknownReqError{}
+
+	if err != nil {
+		response.Value = &types.BlockStoreError{
+			ErrorText: types.String(err.Error()),
+		}
+	}
+
+	return &response
 }

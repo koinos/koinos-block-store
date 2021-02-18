@@ -61,46 +61,13 @@ func TestHandleReservedRequest(t *testing.T) {
 		handler := RequestHandler{b}
 
 		testReq := types.BlockStoreReq{Value: types.NewReservedReq()}
-		result, err := handler.HandleRequest(&testReq)
-		if result != nil {
-			t.Error("Result should be nil")
-		}
-		if err == nil {
-			t.Error("Err should not be nil")
-		}
+		result := handler.HandleRequest(&testReq)
 
-		if _, ok := err.(*ReservedReqError); !ok {
-			t.Error("Err should be ReservedReqError")
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Should have errored BlockStoreError")
 		}
-
-		if err.Error() != "Reserved request is not supported" {
-			t.Error("Unexpected error text")
-		}
-		CloseBackend(b)
-	}
-}
-
-type UnknownReq struct {
-}
-
-func TestHandleUnknownRequestType(t *testing.T) {
-	for bType := range backendTypes {
-		b := NewBackend(bType)
-		handler := RequestHandler{b}
-
-		testReq := types.BlockStoreReq{Value: UnknownReq{}}
-		result, err := handler.HandleRequest(&testReq)
-		if result != nil {
-			t.Error("Result should be nil")
-		}
-		if err == nil {
-			t.Error("Err should not be nil")
-		}
-
-		if _, ok := err.(*UnknownReqError); !ok {
-			t.Error("Err should be UnknownReqError")
-		}
-		if err.Error() != "Unknown request type" {
+		if errval.ErrorText != "Reserved request is not supported" {
 			t.Error("Unexpected error text")
 		}
 		CloseBackend(b)
@@ -169,14 +136,15 @@ func GetEmptyBlockID() types.Multihash {
 	return types.Multihash{ID: 0x12, Digest: vb}
 }
 
-func GetBlockBody(num uint64) types.VariableBlob {
+func GetBlockBody(num uint64) *types.VariableBlob {
 	greetings := []string{
 		"Hello this is block %d.",
 		"Greetings from block %d.",
 		"I like being in block %d.",
 	}
 
-	return []byte(fmt.Sprintf(greetings[int(num)%len(greetings)], num))
+	vb := types.VariableBlob([]byte(fmt.Sprintf(greetings[int(num)%len(greetings)], num)))
+	return &vb
 }
 
 func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
@@ -188,14 +156,15 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		addReq.BlockToAdd.BlockID = GetBlockID(0)
 		addReq.PreviousBlockID = GetEmptyBlockID()
 		addReq.BlockToAdd.BlockHeight = 0
-		addReq.BlockToAdd.BlockBlob = GetBlockBody(0)
-		addReq.BlockToAdd.BlockReceiptBlob = types.VariableBlob(make([]byte, 0))
+		addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromBlob(GetBlockBody(0))
+		addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
 
 		genericReq := types.BlockStoreReq{Value: &addReq}
 
-		_, err := handler.HandleRequest(&genericReq)
-		if err != nil {
-			t.Error("Could not add block 0", err)
+		result := handler.HandleRequest(&genericReq)
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if ok {
+			t.Error("Could not add block 0: ", errval.ErrorText)
 		}
 	}
 
@@ -210,6 +179,17 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		{411, 712, 713, 714, 715, 716, 717, 718},
 		{714, 815, 816, 817, 818, 819},
 	}
+	// A compact notation of the history of each of the heads
+	treeHist := [][]uint64{
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
+		{0, 101, 102, 103, 204, 205, 206, 207, 208, 209, 210, 211},
+		{0, 101, 102, 103, 304, 305, 306, 307},
+		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419},
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 510, 511},
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 613, 614},
+		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 712, 713, 714, 715, 716, 717, 718},
+		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 712, 713, 714, 815, 816, 817, 818, 819},
+	}
 
 	nonExistentBlockID := GetBlockID(999)
 
@@ -218,13 +198,12 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			blockID := GetBlockID(tree[i][j])
 			parentID := GetBlockID(tree[i][j-1])
 
-			// fmt.Printf("Block %d has ID %v\n", tree[i][j], hex.EncodeToString( block_id.Digest ) );
 			addReq := types.AddBlockReq{}
 			addReq.BlockToAdd.BlockID = blockID
 			addReq.PreviousBlockID = parentID
 			addReq.BlockToAdd.BlockHeight = types.BlockHeightType(tree[i][j] % 100)
-			addReq.BlockToAdd.BlockBlob = GetBlockBody(tree[i][j])
-			addReq.BlockToAdd.BlockReceiptBlob = types.VariableBlob(make([]byte, 0))
+			addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromBlob(GetBlockBody(tree[i][j]))
+			addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
 
 			genericReq := types.BlockStoreReq{Value: &addReq}
 
@@ -233,20 +212,21 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				t.Error("Could not marshal JSON", err)
 			}
 
-			result, err := handler.HandleRequest(&genericReq)
-			if err != nil {
-				t.Error("Got error adding block:", err)
-			}
+			result := handler.HandleRequest(&genericReq)
 			if result == nil {
 				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if ok {
+				t.Error("Got error adding block:", errval.ErrorText)
 			}
 
 			getNeReq := types.GetBlocksByHeightReq{}
 			getNeReq.HeadBlockID = nonExistentBlockID
 			getNeReq.AncestorStartHeight = types.BlockHeightType(j - 1)
 			getNeReq.NumBlocks = 1
-			getNeReq.ReturnBlockBlob = false
-			getNeReq.ReturnReceiptBlob = false
+			getNeReq.ReturnBlock = false
+			getNeReq.ReturnReceipt = false
 
 			genericNeReq := types.BlockStoreReq{Value: &getNeReq}
 			_, err = json.Marshal(genericNeReq)
@@ -254,14 +234,12 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				t.Error("Could not marshal JSON", err)
 			}
 
-			result, err = handler.HandleRequest(&genericNeReq)
-			if (result != nil) || (err == nil) {
+			result = handler.HandleRequest(&genericNeReq)
+			errval, ok = result.Value.(*types.BlockStoreError)
+			if !ok {
 				t.Error("Expected error adding block")
 			} else {
-				if _, ok := err.(*BlockNotPresent); !ok {
-					t.Error("Err should be BlockNotPresent")
-				}
-				if err.Error() != "Block was not present" {
+				if errval.ErrorText != "Block was not present" {
 					t.Error("Unexpected error text")
 				}
 			}
@@ -317,8 +295,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			getReq.HeadBlockID = blockID
 			getReq.AncestorStartHeight = types.BlockHeightType(height)
 			getReq.NumBlocks = 1
-			getReq.ReturnBlockBlob = false
-			getReq.ReturnReceiptBlob = false
+			getReq.ReturnBlock = false
+			getReq.ReturnReceipt = false
 
 			genericReq := types.BlockStoreReq{Value: &getReq}
 
@@ -327,12 +305,14 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				t.Error("Could not marshal JSON", err)
 			}
 
-			result, err := handler.HandleRequest(&genericReq)
-			if err != nil {
-				t.Error("Got error retrieving block:", err)
-			}
+			result := handler.HandleRequest(&genericReq)
 			if result == nil {
 				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if ok {
+				t.Error("Got error retrieving block:", errval.ErrorText)
+				t.FailNow()
 			}
 
 			resp := result.Value.(*types.GetBlocksByHeightResp)
@@ -358,23 +338,78 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			getReq := types.GetBlocksByHeightReq{}
 			getReq.HeadBlockID = blockID
 			getReq.NumBlocks = 1
-			getReq.ReturnBlockBlob = false
-			getReq.ReturnReceiptBlob = false
+			getReq.ReturnBlock = false
+			getReq.ReturnReceipt = false
 
 			// GetAncestorAtHeight where the requested height is equal to the height of the requested head
 			getReq.AncestorStartHeight = types.BlockHeightType(height + 1)
 
 			genericReq := types.BlockStoreReq{Value: &getReq}
 
-			result, err := handler.HandleRequest(&genericReq)
-			if err == nil {
+			result := handler.HandleRequest(&genericReq)
+			if result == nil {
+				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if !ok {
 				t.Error("Unexpectedly got non-error result attempting to retrieve descendant block:", result)
+			} else {
+				if errval.ErrorText != "Block height mismatch" {
+					t.Error("Unexpected error text")
+				}
 			}
-			if _, ok := err.(*BlockHeightMismatch); !ok {
-				t.Error("Err should be BlockHeightMismatch")
-			}
-			if err.Error() != "Block height mismatch" {
-				t.Error("Unexpected error text")
+		}
+	}
+
+	// Check querying all possible past ranges from head at end of sequence
+	for i := 0; i < len(tree); i++ {
+		headIndex := len(tree[i]) - 1
+		headID := GetBlockID(tree[i][headIndex])
+
+		for j := 1; j < len(treeHist[i]); j++ {
+			// Iterate beyond the tree
+			kMax := len(treeHist[i]) + 5
+
+			for k := j; k < kMax; k++ {
+				getReq := types.GetBlocksByHeightReq{}
+				getReq.HeadBlockID = headID
+				getReq.NumBlocks = types.UInt32(k - j)
+				getReq.ReturnBlock = false
+				getReq.ReturnReceipt = false
+				getReq.AncestorStartHeight = types.BlockHeightType(j)
+
+				genericReq := types.BlockStoreReq{Value: &getReq}
+
+				result := handler.HandleRequest(&genericReq)
+				if result == nil {
+					t.Error("Got nil result")
+				}
+				errval, ok := result.Value.(*types.BlockStoreError)
+				if ok {
+					t.Error("GetBlocksByHeightReq returned error:", errval.ErrorText)
+				}
+
+				endIndex := k
+				if endIndex > len(treeHist[i]) {
+					endIndex = len(treeHist[i])
+				}
+				blockSeq := treeHist[i][j:endIndex]
+
+				resp := result.Value.(*types.GetBlocksByHeightResp)
+				if len(resp.BlockItems) != len(blockSeq) {
+					t.Errorf("Unexpected result length, expected %d, got %d, expect array is %v", len(resp.BlockItems), len(blockSeq), blockSeq)
+				}
+
+				for checkIndex := 0; checkIndex < len(resp.BlockItems); checkIndex++ {
+					expectedHeight := types.BlockHeightType(blockSeq[checkIndex] % 100)
+					if resp.BlockItems[checkIndex].BlockHeight != expectedHeight {
+						t.Error("Unexpected block height in response")
+					}
+					expectedBlockID := GetBlockID(blockSeq[checkIndex])
+					if !resp.BlockItems[checkIndex].BlockID.Equals(&expectedBlockID) {
+						t.Error("Unexpected ancestor block ID")
+					}
+				}
 			}
 		}
 	}
@@ -392,7 +427,7 @@ func TestAddBlocks(t *testing.T) {
 func GetAddTransactionReq(n types.UInt64) types.AddTransactionReq {
 	vb := n.Serialize(types.NewVariableBlob())
 	m := types.Multihash{ID: 0x12, Digest: *vb}
-	r := types.AddTransactionReq{TransactionID: m, TransactionBlob: *vb}
+	r := types.AddTransactionReq{TransactionID: m, Transaction: *types.NewOpaqueTransactionFromBlob(vb)}
 	return r
 }
 
@@ -459,37 +494,26 @@ func TestAddTransaction(t *testing.T) {
 		handler := RequestHandler{b}
 		for _, req := range reqs {
 			bsr := types.BlockStoreReq{Value: &req}
-
-			result, err := handler.HandleRequest(&bsr)
-			if err != nil {
-				t.Error("Got error adding transaction:", err)
-			}
+			result := handler.HandleRequest(&bsr)
 			if result == nil {
 				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if ok {
+				t.Error("Got error adding transaction:", errval.ErrorText)
 			}
 		}
 
 		// Test adding an already existing transaction
 		{
 			bsr := types.BlockStoreReq{Value: &reqs[0]}
-			result, err := handler.HandleRequest(&bsr)
-			if err != nil {
-				t.Error("Got error adding transaction:", err)
-			}
+			result := handler.HandleRequest(&bsr)
 			if result == nil {
 				t.Error("Got nil result")
 			}
-		}
-
-		// Test adding bad transaction
-		{
-			r := types.AddTransactionReq{TransactionID: reqs[0].TransactionID, TransactionBlob: nil}
-			bsr := types.BlockStoreReq{Value: &r}
-			_, err := handler.HandleRequest(&bsr)
-			if _, ok := err.(*NilTransaction); !ok {
-				t.Error("Nil transaction not returning correct error.")
-			} else if err.Error() == "" {
-				t.Error("Error incorrect message:", err)
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if ok {
+				t.Error("Got error adding transaction:", errval.ErrorText)
 			}
 		}
 
@@ -497,12 +521,13 @@ func TestAddTransaction(t *testing.T) {
 		{
 			r := GetGetTransactionsByIDReq(0, 32)
 			bsr := types.BlockStoreReq{Value: &r}
-			result, err := handler.HandleRequest(&bsr)
-			if err != nil {
-				t.Error("Error fetching transactions:", err)
-			}
+			result := handler.HandleRequest(&bsr)
 			if result == nil {
 				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if ok {
+				t.Error("Error fetching transactions:", errval.ErrorText)
 			}
 
 			tres, ok := result.Value.(*types.GetTransactionsByIDResp)
@@ -511,7 +536,7 @@ func TestAddTransaction(t *testing.T) {
 			}
 
 			for i, nt := range tres.TransactionItems {
-				if !bytes.Equal(reqs[i].TransactionBlob, nt.TransactionBlob) {
+				if !bytes.Equal(*reqs[i].Transaction.GetBlob(), *nt.Transaction.GetBlob()) {
 					t.Error("Result does not match added transaction")
 				}
 			}
@@ -521,11 +546,15 @@ func TestAddTransaction(t *testing.T) {
 		{
 			r := GetGetTransactionsByIDReq(64, 1)
 			bsr := types.BlockStoreReq{Value: &r}
-			_, err := handler.HandleRequest(&bsr)
-			if _, ok := err.(*TransactionNotPresent); !ok {
-				t.Error("Did not recieve expected TransactionNotPresent error")
-			} else if err.Error() == "" {
-				t.Error("Error incorrect message:", err)
+			result := handler.HandleRequest(&bsr)
+			if result == nil {
+				t.Error("Got nil result")
+			}
+			errval, ok := result.Value.(*types.BlockStoreError)
+			if !ok {
+				t.Error("Did not recieve expected error")
+			} else if errval.ErrorText != "Transaction was not present" {
+				t.Error("Did not recieve expected error text")
 			}
 		}
 
@@ -537,9 +566,12 @@ func TestAddTransaction(t *testing.T) {
 		handler := RequestHandler{&TxnErrorBackend{}}
 		r := GetAddTransactionReq(2)
 		tr := types.BlockStoreReq{Value: &r}
-		_, err := handler.HandleRequest(&tr)
-		if err == nil {
-			t.Error("Should have errored on transaction add, but did not")
+		result := handler.HandleRequest(&tr)
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Did not recieve expected error")
+		} else if errval.ErrorText != "Error on put" {
+			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
 
@@ -548,9 +580,12 @@ func TestAddTransaction(t *testing.T) {
 		handler := RequestHandler{&TxnErrorBackend{}}
 		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreReq{Value: &r}
-		_, err := handler.HandleRequest(&tr)
-		if err == nil {
-			t.Error("Should have errored on transaction get, but did not")
+		result := handler.HandleRequest(&tr)
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Did not recieve expected error")
+		} else if errval.ErrorText != "Error on get" {
+			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
 
@@ -559,9 +594,12 @@ func TestAddTransaction(t *testing.T) {
 		handler := RequestHandler{&TxnBadBackend{}}
 		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreReq{Value: &r}
-		_, err := handler.HandleRequest(&tr)
-		if err == nil {
-			t.Error("Should have errored on transaction get, but did not")
+		result := handler.HandleRequest(&tr)
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Did not recieve expected error")
+		} else if errval.ErrorText != "Could not deserialize variable blob size" {
+			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
 
@@ -570,9 +608,12 @@ func TestAddTransaction(t *testing.T) {
 		handler := RequestHandler{&TxnLongBackend{}}
 		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreReq{Value: &r}
-		_, err := handler.HandleRequest(&tr)
-		if err == nil {
-			t.Error("Should have errored on transaction get, but did not")
+		result := handler.HandleRequest(&tr)
+		errval, ok := result.Value.(*types.BlockStoreError)
+		if !ok {
+			t.Error("Did not recieve expected error")
+		} else if errval.ErrorText != "Could not deserialize block" {
+			t.Error("Got unexpected error text: ", errval.ErrorText)
 		}
 	}
 }

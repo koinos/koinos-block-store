@@ -3,7 +3,7 @@ package bstore
 import (
 	"encoding/hex"
 	"errors"
-	"fmt"
+	"log"
 	"math/bits"
 
 	types "github.com/koinos/koinos-types-golang"
@@ -146,8 +146,8 @@ func (handler *RequestHandler) fillBlocks(
 
 		consumed, record, err := types.DeserializeBlockRecord(&vbValue)
 		if err != nil {
-			fmt.Println("Couldn't deserialize block record")
-			fmt.Println("vb: ", recordBytes)
+			log.Println("Couldn't deserialize block record")
+			log.Println("vb: ", recordBytes)
 			return nil, err
 		}
 		if consumed != uint64(len(recordBytes)) {
@@ -158,8 +158,8 @@ func (handler *RequestHandler) fillBlocks(
 		if i > 0 {
 			expectedHeight := blockItems[k+1].BlockHeight - 1
 			if record.BlockHeight != expectedHeight {
-				fmt.Println("record height:", record.BlockHeight)
-				fmt.Println("expect height:", expectedHeight)
+				log.Println("record height:", record.BlockHeight)
+				log.Println("expect height:", expectedHeight)
 				return nil, &UnexpectedHeightError{}
 			}
 		}
@@ -229,8 +229,8 @@ func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksBy
 	if len(resp.BlockItems) > 0 {
 		expectedHeight := req.AncestorStartHeight
 		if resp.BlockItems[0].BlockHeight != expectedHeight {
-			fmt.Println("start  height:", resp.BlockItems[0].BlockHeight)
-			fmt.Println("expect height:", expectedHeight)
+			log.Println("start  height:", resp.BlockItems[0].BlockHeight)
+			log.Println("expect height:", expectedHeight)
 			return nil, &UnexpectedHeightError{}
 		}
 	}
@@ -316,13 +316,10 @@ func getBlockHeight(backend BlockStoreBackend, blockID *types.Multihash) (types.
 		return 0, &BlockNotPresent{}
 	}
 
-	// TODO is there a way to avoid this copy?
-	var vbValue types.VariableBlob = types.VariableBlob(recordBytes)
-
-	consumed, record, err := types.DeserializeBlockRecord(&vbValue)
+	consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))
 	if err != nil {
-		fmt.Println("Couldn't deserialize block record")
-		fmt.Println("vb: ", recordBytes)
+		log.Println("Couldn't deserialize block record")
+		log.Println("vb: ", recordBytes)
 		return 0, err
 	}
 	if consumed != uint64(len(recordBytes)) {
@@ -348,21 +345,18 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 			return nil, &BlockNotPresent{}
 		}
 
-		// TODO is there a way to avoid this copy?
-		//var vbValue types.VariableBlob = types.VariableBlob(recordBytes)
-
 		consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))
 		if err != nil {
-			fmt.Println("Couldn't deserialize block record")
-			fmt.Println("vb: ", recordBytes)
+			log.Println("Couldn't deserialize block record")
+			log.Println("vb: ", recordBytes)
 			return nil, err
 		}
 		if consumed != uint64(len(recordBytes)) {
 			return nil, &DeserializeError{}
 		}
 		if hasExpectedHeight && (record.BlockHeight != expectedHeight) {
-			fmt.Println("record height:", record.BlockHeight)
-			fmt.Println("expect height:", expectedHeight)
+			log.Println("record height:", record.BlockHeight)
+			log.Println("expect height:", expectedHeight)
 			return nil, &UnexpectedHeightError{}
 		}
 
@@ -462,15 +456,15 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 			return nil, err
 		}
 		if len(recordBytes) == 0 {
-			fmt.Println("Transaction not present, key is", hex.EncodeToString(tid.Digest))
+			log.Println("Transaction not present, key is", hex.EncodeToString(tid.Digest))
 			return nil, &TransactionNotPresent{}
 		}
 
 		vbValue := types.VariableBlob(recordBytes)
 		consumed, record, err := types.DeserializeTransactionRecord(&vbValue)
 		if err != nil {
-			fmt.Println("Couldn't deserialize transaction record")
-			fmt.Println("vb: ", recordBytes)
+			log.Println("Couldn't deserialize transaction record")
+			log.Println("vb: ", recordBytes)
 			return nil, err
 		}
 		if consumed != uint64(len(recordBytes)) {

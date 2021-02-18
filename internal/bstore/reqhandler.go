@@ -422,7 +422,8 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockReq) (*types
 			}
 		}
 	} else {
-		record.PreviousBlockIds = make([]types.Multihash, 0)
+		record.PreviousBlockIds = make([]types.Multihash, 1)
+		record.PreviousBlockIds[0] = req.PreviousBlockID
 	}
 
 	vbKey := record.BlockID.Serialize(types.NewVariableBlob())

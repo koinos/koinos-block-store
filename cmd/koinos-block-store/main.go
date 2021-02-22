@@ -26,7 +26,7 @@ func debugTesting() {
 	// Some testing stuff
 	h, _ := hex.DecodeString("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 	blockID := types.Multihash{ID: 0x12, Digest: types.VariableBlob(h)}
-	testReq := types.BlockStoreReq{Value: &types.GetBlocksByIDReq{BlockID: types.VectorMultihash{blockID}}}
+	testReq := types.BlockStoreRequest{Value: &types.GetBlocksByIDRequest{BlockID: types.VectorMultihash{blockID}}}
 	testReqJSON, _ := testReq.MarshalJSON()
 	log.Println(string(testReqJSON))
 }
@@ -47,13 +47,13 @@ func main() {
 
 	mq.SetRPCHandler("koinos_block", func(rpcType string, data []byte) ([]byte, error) {
 		//req, ok := rpc.(types.BlockStoreReq)
-		req := types.NewBlockStoreReq()
+		req := types.NewBlockStoreRequest()
 		err := json.Unmarshal(data, req)
 		if err != nil {
 			return nil, err
 		}
 
-		var resp = types.NewBlockStoreResp()
+		var resp = types.NewBlockStoreResponse()
 		resp = handler.HandleRequest(req)
 
 		var outputBytes []byte
@@ -71,8 +71,8 @@ func main() {
 			return
 		}
 
-		req := types.BlockStoreReq{
-			Value: &types.AddBlockReq{
+		req := types.BlockStoreRequest{
+			Value: &types.AddBlockRequest{
 				BlockToAdd: types.BlockItem{
 					BlockID:      sub.Topology.ID,
 					BlockHeight:  sub.Topology.Height,

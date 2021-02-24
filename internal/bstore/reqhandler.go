@@ -98,8 +98,8 @@ func (handler *RequestHandler) handleReservedReq(req *types.BlockStoreReservedRe
 	return nil, &ReservedReqError{}
 }
 
-func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDReq) (*types.GetBlocksByIDResp, error) {
-	result := types.NewGetBlocksByIDResp()
+func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDRequest) (*types.GetBlocksByIDResponse, error) {
+	result := types.NewGetBlocksByIDResponse()
 	emptyVb := types.NewVariableBlob()
 
 	result.BlockItems = make(types.VectorBlockItem, len(req.BlockID))

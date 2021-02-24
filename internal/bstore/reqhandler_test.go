@@ -445,7 +445,7 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 	BuildTestTree(t, &handler, tree, true)
 
 	getBlocksByID := func(ids []uint64, returnBlock bool, returnReceipt bool, errText string) []types.BlockItem {
-		req := types.NewGetBlocksByIDReq()
+		req := types.NewGetBlocksByIDRequest()
 		req.BlockID = make([]types.Multihash, len(ids))
 		for i := 0; i < len(ids); i++ {
 			req.BlockID[i] = GetBlockID(ids[i])
@@ -453,13 +453,13 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 		req.ReturnBlockBlob = types.Boolean(returnBlock)
 		req.ReturnReceiptBlob = types.Boolean(returnReceipt)
 
-		genericReq := types.BlockStoreReq{Value: req}
+		genericReq := types.BlockStoreRequest{Value: req}
 
 		result := handler.HandleRequest(&genericReq)
 		if result == nil {
 			t.Error("Got nil result")
 		}
-		errval, isErr := result.Value.(*types.BlockStoreError)
+		errval, isErr := result.Value.(*types.BlockStoreErrorResponse)
 		if errText == "" {
 			if isErr {
 				t.Error("GetBlocksByIDReq returned error (expecting success):", errval.ErrorText)
@@ -476,7 +476,7 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 				t.Error("GetBlocksByIDReq returned success, expected error was:", errText)
 			}
 		}
-		return result.Value.(*types.GetBlocksByIDResp).BlockItems
+		return result.Value.(*types.GetBlocksByIDResponse).BlockItems
 	}
 
 	testCases := [][]uint64{

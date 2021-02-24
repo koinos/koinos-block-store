@@ -4,8 +4,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"flag"
-	"fmt"
-	"time"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
@@ -24,9 +26,9 @@ func debugTesting() {
 	// Some testing stuff
 	h, _ := hex.DecodeString("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 	blockID := types.Multihash{ID: 0x12, Digest: types.VariableBlob(h)}
-	testReq := types.BlockStoreReq{Value: &types.GetBlocksByIDReq{BlockID: types.VectorMultihash{blockID}}}
+	testReq := types.BlockStoreRequest{Value: &types.GetBlocksByIDRequest{BlockID: types.VectorMultihash{blockID}}}
 	testReqJSON, _ := testReq.MarshalJSON()
-	fmt.Println(string(testReqJSON))
+	log.Println(string(testReqJSON))
 }
 
 func main() {
@@ -45,13 +47,13 @@ func main() {
 
 	mq.SetRPCHandler("koinos_block", func(rpcType string, data []byte) ([]byte, error) {
 		//req, ok := rpc.(types.BlockStoreReq)
-		req := types.NewBlockStoreReq()
+		req := types.NewBlockStoreRequest()
 		err := json.Unmarshal(data, req)
 		if err != nil {
 			return nil, err
 		}
 
-		var resp = types.NewBlockStoreResp()
+		var resp = types.NewBlockStoreResponse()
 		resp = handler.HandleRequest(req)
 
 		var outputBytes []byte
@@ -60,9 +62,8 @@ func main() {
 		return outputBytes, err
 	})
 	mq.SetBroadcastHandler("koinos.block.accept", func(topic string, data []byte) {
-		fmt.Println("Received message on koinos.block.accept")
-
-		fmt.Println(string(data))
+		log.Println("Received message on koinos.block.accept")
+		log.Println(string(data))
 
 		sub := types.NewBlockSubmission()
 		err := json.Unmarshal(data, sub)
@@ -70,8 +71,8 @@ func main() {
 			return
 		}
 
-		req := types.BlockStoreReq{
-			Value: &types.AddBlockReq{
+		req := types.BlockStoreRequest{
+			Value: &types.AddBlockRequest{
 				BlockToAdd: types.BlockItem{
 					BlockID:      sub.Topology.ID,
 					BlockHeight:  sub.Topology.Height,
@@ -82,11 +83,12 @@ func main() {
 			},
 		}
 		_ = handler.HandleRequest(&req)
-
-		fmt.Println("Success")
 	})
 	mq.Start()
-	for {
-		time.Sleep(time.Duration(1))
-	}
+
+	// Wait for a SIGINT or SIGTERM signal
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	<-ch
+	log.Println("Shutting down node...")
 }

@@ -472,9 +472,8 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 				}
 				// OK:  Expected error, got error, errText matched
 				return []types.BlockItem{}
-			} else {
-				t.Error("GetBlocksByIDReq returned success, expected error was:", errText)
 			}
+			t.Error("GetBlocksByIDReq returned success, expected error was:", errText)
 		}
 		return result.Value.(*types.GetBlocksByIDResponse).BlockItems
 	}

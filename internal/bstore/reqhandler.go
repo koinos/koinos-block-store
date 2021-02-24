@@ -111,7 +111,7 @@ func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDRe
 		result.BlockItems[i].Block = *types.NewOpaqueBlockFromBlob(emptyVb)
 		result.BlockItems[i].BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(emptyVb)
 
-		if err == nil {
+		if err != nil {
 			continue
 		}
 
@@ -121,6 +121,9 @@ func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDRe
 		if read == 0 || err != nil {
 			continue
 		}
+
+		result.BlockItems[i].BlockID = record.BlockID
+		result.BlockItems[i].BlockHeight = record.BlockHeight
 
 		if req.ReturnBlockBlob {
 			result.BlockItems[i].Block = record.Block

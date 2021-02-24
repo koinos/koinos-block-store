@@ -147,17 +147,19 @@ func GetBlockBody(num uint64) *types.VariableBlob {
 	return &vb
 }
 
-func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
-	b := NewBackend(backendType)
-	handler := RequestHandler{b}
+func GetBlockReceipt(num uint64) *types.VariableBlob {
+	vb := types.VariableBlob([]byte(fmt.Sprintf("Receipt for block %d", num)))
+	return &vb
+}
 
+func BuildTestTree(t *testing.T, handler *RequestHandler, tree [][]uint64, addZeroBlock bool) {
 	if addZeroBlock {
 		addReq := types.AddBlockReq{}
 		addReq.BlockToAdd.BlockID = GetBlockID(0)
 		addReq.PreviousBlockID = GetEmptyBlockID()
 		addReq.BlockToAdd.BlockHeight = 0
 		addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromBlob(GetBlockBody(0))
-		addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
+		addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(GetBlockReceipt(0))
 
 		genericReq := types.BlockStoreReq{Value: &addReq}
 
@@ -166,29 +168,6 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		if ok {
 			t.Error("Could not add block 0: ", errval.ErrorText)
 		}
-	}
-
-	// A compact notation of the tree of forks we want to create for the test
-	tree := [][]uint64{
-		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
-		{103, 204, 205, 206, 207, 208, 209, 210, 211},
-		{103, 304, 305, 306, 307},
-		{106, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419},
-		{109, 510, 511},
-		{112, 613, 614},
-		{411, 712, 713, 714, 715, 716, 717, 718},
-		{714, 815, 816, 817, 818, 819},
-	}
-	// A compact notation of the history of each of the heads
-	treeHist := [][]uint64{
-		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
-		{0, 101, 102, 103, 204, 205, 206, 207, 208, 209, 210, 211},
-		{0, 101, 102, 103, 304, 305, 306, 307},
-		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419},
-		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 510, 511},
-		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 613, 614},
-		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 712, 713, 714, 715, 716, 717, 718},
-		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 712, 713, 714, 815, 816, 817, 818, 819},
 	}
 
 	nonExistentBlockID := GetBlockID(999)
@@ -203,7 +182,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			addReq.PreviousBlockID = parentID
 			addReq.BlockToAdd.BlockHeight = types.BlockHeightType(tree[i][j] % 100)
 			addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromBlob(GetBlockBody(tree[i][j]))
-			addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
+			addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(GetBlockReceipt(tree[i][j]))
 
 			genericReq := types.BlockStoreReq{Value: &addReq}
 
@@ -245,6 +224,34 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			}
 		}
 	}
+}
+
+func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
+	b := NewBackend(backendType)
+	handler := RequestHandler{b}
+
+	// A compact notation of the tree of forks we want to create for the test
+	tree := [][]uint64{
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
+		{103, 204, 205, 206, 207, 208, 209, 210, 211},
+		{103, 304, 305, 306, 307},
+		{106, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419},
+		{109, 510, 511},
+		{112, 613, 614},
+		{411, 712, 713, 714, 715, 716, 717, 718},
+		{714, 815, 816, 817, 818, 819},
+	}
+	// A compact notation of the history of each of the heads
+	treeHist := [][]uint64{
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
+		{0, 101, 102, 103, 204, 205, 206, 207, 208, 209, 210, 211},
+		{0, 101, 102, 103, 304, 305, 306, 307},
+		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419},
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 510, 511},
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 613, 614},
+		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 712, 713, 714, 715, 716, 717, 718},
+		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 712, 713, 714, 815, 816, 817, 818, 819},
+	}
 
 	// Item {105, 120, 4, 104} means for blocks 105-120, the ancestor at height 4 is block 104.
 	ancestorCases := [][]uint64{
@@ -284,6 +291,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		{815, 819, 10, 410}, {815, 819, 11, 411}, {815, 819, 12, 712}, {815, 819, 13, 713}, {815, 819, 14, 714},
 		{815, 819, 15, 815}, {816, 819, 16, 816}, {817, 819, 17, 817}, {818, 819, 18, 818}, {819, 819, 19, 819},
 	}
+
+	BuildTestTree(t, &handler, tree, addZeroBlock)
 
 	for i := 0; i < len(ancestorCases); i++ {
 		for b := ancestorCases[i][0]; b <= ancestorCases[i][1]; b++ {
@@ -421,6 +430,132 @@ func TestAddBlocks(t *testing.T) {
 	for backendType := range backendTypes {
 		addBlocksTestImpl(t, backendType, false)
 		addBlocksTestImpl(t, backendType, true)
+	}
+}
+
+func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
+	tree := [][]uint64{
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113},
+		{0, 101, 102, 103, 204, 205, 206, 207, 208, 209, 210, 211},
+		{0, 101, 102, 103, 304, 305, 306, 307},
+	}
+
+	b := NewMapBackend()
+	handler := RequestHandler{b}
+	BuildTestTree(t, &handler, tree, true)
+
+	getBlocksByID := func(ids []uint64, returnBlock bool, returnReceipt bool, errText string) []types.BlockItem {
+		req := types.NewGetBlocksByIDReq()
+		req.BlockID = make([]types.Multihash, len(ids))
+		for i := 0; i < len(ids); i++ {
+			req.BlockID[i] = GetBlockID(ids[i])
+		}
+		req.ReturnBlockBlob = types.Boolean(returnBlock)
+		req.ReturnReceiptBlob = types.Boolean(returnReceipt)
+
+		genericReq := types.BlockStoreReq{Value: req}
+
+		result := handler.HandleRequest(&genericReq)
+		if result == nil {
+			t.Error("Got nil result")
+		}
+		errval, isErr := result.Value.(*types.BlockStoreError)
+		if errText == "" {
+			if isErr {
+				t.Error("GetBlocksByIDReq returned error (expecting success):", errval.ErrorText)
+			}
+			// OK:  Expected success, got success
+		} else {
+			if isErr {
+				if errText != string(errval.ErrorText) {
+					t.Error("GetBlocksByIDReq returned unexpected error:", errval.ErrorText)
+				}
+				// OK:  Expected error, got error, errText matched
+				return []types.BlockItem{}
+			} else {
+				t.Error("GetBlocksByIDReq returned success, expected error was:", errText)
+			}
+		}
+		return result.Value.(*types.GetBlocksByIDResp).BlockItems
+	}
+
+	testCases := [][]uint64{
+		{}, {101, 102, 103}, {108, 109, 110}, {206, 104, 307, 111},
+		{990}, {990, 991}, {990, 108, 991, 992, 104},
+	}
+
+	var checkBlockLength func(*types.BlockItem)
+	var checkReceiptLength func(*types.BlockItem)
+
+	if returnBlock {
+		checkBlockLength = func(item *types.BlockItem) {
+			if len(*item.Block.GetBlob()) == 0 {
+				t.Error("Expected non-empty block")
+			}
+		}
+	} else {
+		checkBlockLength = func(item *types.BlockItem) {
+			if len(*item.Block.GetBlob()) > 0 {
+				t.Error("Expected empty block")
+			}
+		}
+	}
+
+	if returnReceipt {
+		checkReceiptLength = func(item *types.BlockItem) {
+			if len(*item.BlockReceipt.GetBlob()) == 0 {
+				t.Error("Expected non-empty receipt")
+			}
+		}
+	} else {
+		checkReceiptLength = func(item *types.BlockItem) {
+			if len(*item.BlockReceipt.GetBlob()) > 0 {
+				t.Error("Expected empty receipt")
+			}
+		}
+	}
+
+	checkLengths := func(item *types.BlockItem) {
+		checkBlockLength(item)
+		checkReceiptLength(item)
+	}
+
+	for i := 0; i < len(testCases); i++ {
+		result := getBlocksByID(testCases[i], returnBlock, returnReceipt, "")
+		if len(result) != len(testCases[i]) {
+			t.Error("Unexpected result length")
+		}
+
+		for j := 0; j < len(testCases[i]); j++ {
+			if testCases[i][j] < 900 {
+				expectedBlockID := GetBlockID(testCases[i][j])
+				if !result[j].BlockID.Equals(&expectedBlockID) {
+					fmt.Printf("%d %d %v %v\n", i, j, expectedBlockID, result[j].BlockID)
+					t.Error("Unexpected block ID")
+					return
+				}
+				if uint64(result[j].BlockHeight) != testCases[i][j]%100 {
+					t.Error("Unexpected block height")
+				}
+				checkLengths(&result[j])
+			} else {
+				expectedBlockID := types.NewMultihash()
+				if !result[j].BlockID.Equals(expectedBlockID) {
+					t.Error("Expected empty multihash for non-existent block")
+				}
+				if result[j].BlockHeight != 0 {
+					t.Error("Expected zero height for non-existent block")
+				}
+			}
+		}
+	}
+}
+
+func TestGetBlocksByID(t *testing.T) {
+	for _, returnBlock := range []bool{false, true} {
+		for _, returnReceipt := range []bool{false, true} {
+			testGetBlocksByIDImpl(t, returnBlock, returnReceipt)
+		}
 	}
 }
 

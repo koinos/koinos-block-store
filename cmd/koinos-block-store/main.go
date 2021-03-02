@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
-	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -13,6 +12,7 @@ import (
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	koinosmq "github.com/koinos/koinos-mq-golang"
 	types "github.com/koinos/koinos-types-golang"
+	flag "github.com/spf13/pflag"
 )
 
 // Send block to store
@@ -32,8 +32,8 @@ func debugTesting() {
 }
 
 func main() {
-	var dFlag = flag.String("d", "./db", "the database directory")
-	var amqpFlag = flag.String("a", "amqp://guest:guest@localhost:5672/", "AMQP server URL")
+	var dFlag = flag.StringP("data", "d", "./db", "the database directory")
+	var amqpFlag = flag.StringP("amqp", "a", "amqp://guest:guest@localhost:5672/", "AMQP server URL")
 
 	flag.Parse()
 

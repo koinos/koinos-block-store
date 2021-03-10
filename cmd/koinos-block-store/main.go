@@ -61,13 +61,14 @@ func main() {
 
 		return outputBytes, err
 	})
+
 	mq.SetBroadcastHandler("koinos.block.accept", func(topic string, data []byte) {
 		log.Println("Received message on koinos.block.accept")
-		log.Println(string(data))
 
-		sub := types.NewBlockSubmission()
+		sub := types.NewBlockAccepted()
 		err := json.Unmarshal(data, sub)
 		if err != nil {
+			log.Println("Unable to parse BlockAccepted broadcast")
 			return
 		}
 
@@ -84,6 +85,24 @@ func main() {
 		}
 		_ = handler.HandleRequest(&req)
 	})
+
+	mq.SetBroadcastHandler("koinos.block.irreversible", func(topic string, data []byte) {
+		log.Println("Received message on koinos.block.irreversible")
+
+		broadcastMessage := types.NewBlockIrreversible()
+		err := json.Unmarshal(data, broadcastMessage)
+		if err != nil {
+			log.Println("Unable to parse BlockIrreversible broadcast")
+			return
+		}
+
+		err = handler.UpdateLastIrreversible(&broadcastMessage.Topology.ID)
+		if err != nil {
+			log.Println("Error while storing last irreverisible block topology")
+			return
+		}
+	})
+
 	mq.Start()
 
 	// Wait for a SIGINT or SIGTERM signal

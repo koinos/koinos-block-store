@@ -752,6 +752,36 @@ func TestAddTransaction(t *testing.T) {
 	}
 }
 
+func TestLastIrreversibleBlock(t *testing.T) {
+	var multihash types.Multihash
+	multihash.ID = 18
+	multihash.Digest = types.VariableBlob{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A}
+
+	for bType := range backendTypes {
+		b := NewBackend(bType)
+		handler := RequestHandler{b}
+
+		handler.UpdateLastIrreversible(&multihash)
+
+		req := types.NewGetLastIrreversibleBlockRequest()
+		blockStoreReq := types.BlockStoreRequest{Value: req}
+		result := handler.HandleRequest(&blockStoreReq)
+
+		lastIrreversibleBlockResponse, ok := result.Value.(*types.GetLastIrreversibleBlockResponse)
+		if !ok {
+			t.Error("Did not recieve expected response")
+		}
+
+		if lastIrreversibleBlockResponse.BlockID.ID != multihash.ID {
+			t.Error("Encountered an ID mismatch")
+		}
+
+		if !bytes.Equal(lastIrreversibleBlockResponse.BlockID.Digest, multihash.Digest) {
+			t.Error("Encountered a digest mismatch")
+		}
+	}
+}
+
 func TestInternalError(t *testing.T) {
 	err := InternalError{}
 	if err.Error() != "Internal constraint was violated" {

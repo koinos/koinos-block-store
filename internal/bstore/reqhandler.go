@@ -509,6 +509,32 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 	return &resp, nil
 }
 
+func (handler *RequestHandler) handleGetLastIrreversibleBlockReq(req *types.GetLastIrreversibleBlockRequest) (*types.GetLastIrreversibleBlockResponse, error) {
+	key := types.VariableBlob{0x00}
+	recordBytes, err := handler.Backend.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	valueBlob := types.VariableBlob(recordBytes)
+	_, value, err := types.DeserializeMultihash(&valueBlob)
+	if err != nil {
+		log.Println("Could not deserialize last irreversible block ID")
+	}
+
+	response := types.NewGetLastIrreversibleBlockResponse()
+	response.BlockID = *value
+	return response, nil
+}
+
+// UpdateLastIrreversible Updates the database metadata with the last irreversible block ID
+func (handler *RequestHandler) UpdateLastIrreversible(blockID *types.Multihash) error {
+	key := types.VariableBlob{0x00}
+	value := blockID.Serialize(types.NewVariableBlob())
+
+	return handler.Backend.Put(key, *value)
+}
+
 // HandleRequest handles and routes blockstore requests
 func (handler *RequestHandler) HandleRequest(req *types.BlockStoreRequest) *types.BlockStoreResponse {
 	var response types.BlockStoreResponse
@@ -552,6 +578,13 @@ func (handler *RequestHandler) HandleRequest(req *types.BlockStoreRequest) *type
 	case *types.GetTransactionsByIDRequest:
 		var result *types.GetTransactionsByIDResponse
 		result, err = handler.handleGetTransactionsByIDReq(v)
+		if err == nil {
+			response.Value = result
+		}
+		break
+	case *types.GetLastIrreversibleBlockRequest:
+		var result *types.GetLastIrreversibleBlockResponse
+		result, err = handler.handleGetLastIrreversibleBlockReq(v)
 		if err == nil {
 			response.Value = result
 		}

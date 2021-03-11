@@ -58,7 +58,8 @@ func CloseBackend(b interface{}) {
 func TestHandleReservedRequest(t *testing.T) {
 	for bType := range backendTypes {
 		b := NewBackend(bType)
-		handler := RequestHandler{b}
+		m := NewBackend(bType)
+		handler := RequestHandler{Backend: b, Metadata: m}
 
 		testReq := types.BlockStoreRequest{Value: types.NewBlockStoreReservedRequest()}
 		result := handler.HandleRequest(&testReq)
@@ -71,6 +72,7 @@ func TestHandleReservedRequest(t *testing.T) {
 			t.Error("Unexpected error text")
 		}
 		CloseBackend(b)
+		CloseBackend(m)
 	}
 }
 
@@ -228,7 +230,8 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, tree [][]uint64, addZe
 
 func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 	b := NewBackend(backendType)
-	handler := RequestHandler{b}
+	m := NewBackend(backendType)
+	handler := RequestHandler{Backend: b, Metadata: m}
 
 	// A compact notation of the tree of forks we want to create for the test
 	tree := [][]uint64{
@@ -424,6 +427,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 	}
 
 	CloseBackend(b)
+	CloseBackend(m)
 }
 
 func TestAddBlocks(t *testing.T) {
@@ -441,7 +445,8 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 	}
 
 	b := NewMapBackend()
-	handler := RequestHandler{b}
+	m := NewMapBackend()
+	handler := RequestHandler{Backend: b, Metadata: m}
 	BuildTestTree(t, &handler, tree, true)
 
 	getBlocksByID := func(ids []uint64, returnBlock bool, returnReceipt bool, errText string) []types.BlockItem {
@@ -625,7 +630,8 @@ func TestAddTransaction(t *testing.T) {
 	// Add the transactions
 	for bType := range backendTypes {
 		b := NewBackend(bType)
-		handler := RequestHandler{b}
+		m := NewBackend(bType)
+		handler := RequestHandler{Backend: b, Metadata: m}
 		for _, req := range reqs {
 			bsr := types.BlockStoreRequest{Value: &req}
 			result := handler.HandleRequest(&bsr)
@@ -693,11 +699,12 @@ func TestAddTransaction(t *testing.T) {
 		}
 
 		CloseBackend(b)
+		CloseBackend(m)
 	}
 
 	// Test error on add
 	{
-		handler := RequestHandler{&TxnErrorBackend{}}
+		handler := RequestHandler{Backend: &TxnErrorBackend{}, Metadata: &TxnErrorBackend{}}
 		r := GetAddTransactionReq(2)
 		tr := types.BlockStoreRequest{Value: &r}
 		result := handler.HandleRequest(&tr)
@@ -711,7 +718,7 @@ func TestAddTransaction(t *testing.T) {
 
 	// Test error on get
 	{
-		handler := RequestHandler{&TxnErrorBackend{}}
+		handler := RequestHandler{Backend: &TxnErrorBackend{}, Metadata: &TxnErrorBackend{}}
 		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreRequest{Value: &r}
 		result := handler.HandleRequest(&tr)
@@ -725,7 +732,7 @@ func TestAddTransaction(t *testing.T) {
 
 	// Test bad record
 	{
-		handler := RequestHandler{&TxnBadBackend{}}
+		handler := RequestHandler{Backend: &TxnBadBackend{}, Metadata: &TxnBadBackend{}}
 		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreRequest{Value: &r}
 		result := handler.HandleRequest(&tr)
@@ -739,7 +746,7 @@ func TestAddTransaction(t *testing.T) {
 
 	// Test too long record
 	{
-		handler := RequestHandler{&TxnLongBackend{}}
+		handler := RequestHandler{Backend: &TxnLongBackend{}, Metadata: &TxnLongBackend{}}
 		r := GetGetTransactionsByIDReq(0, 1)
 		tr := types.BlockStoreRequest{Value: &r}
 		result := handler.HandleRequest(&tr)
@@ -759,7 +766,8 @@ func TestLastIrreversibleBlock(t *testing.T) {
 
 	for bType := range backendTypes {
 		b := NewBackend(bType)
-		handler := RequestHandler{b}
+		m := NewBackend(bType)
+		handler := RequestHandler{Backend: b, Metadata: m}
 
 		handler.UpdateLastIrreversible(&multihash)
 
@@ -779,6 +787,9 @@ func TestLastIrreversibleBlock(t *testing.T) {
 		if !bytes.Equal(lastIrreversibleBlockResponse.BlockID.Digest, multihash.Digest) {
 			t.Error("Encountered a digest mismatch")
 		}
+
+		CloseBackend(b)
+		CloseBackend(m)
 	}
 }
 

@@ -9,9 +9,14 @@ import (
 	types "github.com/koinos/koinos-types-golang"
 )
 
+const (
+	lastIrreversibleBlockKey string = "last_irreversible_block"
+)
+
 // RequestHandler contains a backend object and handles requests
 type RequestHandler struct {
-	Backend BlockStoreBackend
+	Backend  BlockStoreBackend
+	Metadata BlockStoreBackend
 }
 
 // ReservedReqError is an error type that is thrown when a reserved request is passed to the request handler
@@ -510,8 +515,8 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 }
 
 func (handler *RequestHandler) handleGetLastIrreversibleBlockReq(req *types.GetLastIrreversibleBlockRequest) (*types.GetLastIrreversibleBlockResponse, error) {
-	key := types.VariableBlob{0x00}
-	recordBytes, err := handler.Backend.Get(key)
+	key := types.VariableBlob(lastIrreversibleBlockKey)
+	recordBytes, err := handler.Metadata.Get(key)
 	if err != nil {
 		return nil, err
 	}
@@ -529,10 +534,10 @@ func (handler *RequestHandler) handleGetLastIrreversibleBlockReq(req *types.GetL
 
 // UpdateLastIrreversible Updates the database metadata with the last irreversible block ID
 func (handler *RequestHandler) UpdateLastIrreversible(blockID *types.Multihash) error {
-	key := types.VariableBlob{0x00}
+	key := types.VariableBlob(lastIrreversibleBlockKey)
 	value := blockID.Serialize(types.NewVariableBlob())
 
-	return handler.Backend.Put(key, *value)
+	return handler.Metadata.Put(key, *value)
 }
 
 // HandleRequest handles and routes blockstore requests

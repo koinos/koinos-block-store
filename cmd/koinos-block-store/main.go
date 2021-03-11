@@ -26,13 +26,21 @@ func main() {
 
 	flag.Parse()
 
-	var opts = badger.DefaultOptions(*dFlag)
-	var backend = bstore.NewBadgerBackend(opts)
+	if _, err := os.Stat(*dFlag); os.IsNotExist(err) {
+		os.Mkdir(*dFlag, os.ModePerm)
+	}
+	var backendDir = *dFlag + "/kv"
+	var metaDir = *dFlag + "/meta"
+	var backendOpts = badger.DefaultOptions(backendDir)
+	var metaOpts = badger.DefaultOptions(metaDir)
+	var backend = bstore.NewBadgerBackend(backendOpts)
+	var metadata = bstore.NewBadgerBackend(metaOpts)
 	defer backend.Close()
+	defer metadata.Close()
 
 	mq := koinosmq.NewKoinosMQ(*amqpFlag)
 
-	handler := bstore.RequestHandler{Backend: backend}
+	handler := bstore.RequestHandler{Backend: backend, Metadata: metadata}
 
 	mq.SetRPCHandler(blockstoreRPC, func(rpcType string, data []byte) ([]byte, error) {
 		//req, ok := rpc.(types.BlockStoreReq)

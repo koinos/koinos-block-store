@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"log"
 	"os"
@@ -15,21 +14,11 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-// Send block to store
-//
-// Key-value store backend for block data
-//
-
-// TODO create block_receipt
-
-func debugTesting() {
-	// Some testing stuff
-	h, _ := hex.DecodeString("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-	blockID := types.Multihash{ID: 0x12, Digest: types.VariableBlob(h)}
-	testReq := types.BlockStoreRequest{Value: &types.GetBlocksByIDRequest{BlockID: types.VectorMultihash{blockID}}}
-	testReqJSON, _ := testReq.MarshalJSON()
-	log.Println(string(testReqJSON))
-}
+const (
+	blockstoreRPC     string = "koinos_block"
+	blockAccept       string = "koinos.block.accept"
+	blockIrreversible string = "koinos.block.irreversible"
+)
 
 func main() {
 	var dFlag = flag.StringP("data", "d", "./db", "the database directory")
@@ -45,7 +34,7 @@ func main() {
 
 	handler := bstore.RequestHandler{Backend: backend}
 
-	mq.SetRPCHandler("koinos_block", func(rpcType string, data []byte) ([]byte, error) {
+	mq.SetRPCHandler(blockstoreRPC, func(rpcType string, data []byte) ([]byte, error) {
 		//req, ok := rpc.(types.BlockStoreReq)
 		req := types.NewBlockStoreRequest()
 		err := json.Unmarshal(data, req)
@@ -62,7 +51,7 @@ func main() {
 		return outputBytes, err
 	})
 
-	mq.SetBroadcastHandler("koinos.block.accept", func(topic string, data []byte) {
+	mq.SetBroadcastHandler(blockAccept, func(topic string, data []byte) {
 		log.Println("Received message on koinos.block.accept")
 
 		sub := types.NewBlockAccepted()
@@ -86,7 +75,7 @@ func main() {
 		_ = handler.HandleRequest(&req)
 	})
 
-	mq.SetBroadcastHandler("koinos.block.irreversible", func(topic string, data []byte) {
+	mq.SetBroadcastHandler(blockIrreversible, func(topic string, data []byte) {
 		log.Println("Received message on koinos.block.irreversible")
 
 		broadcastMessage := types.NewBlockIrreversible()

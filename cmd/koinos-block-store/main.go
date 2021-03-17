@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	base58 "github.com/btcsuite/btcutil/base58"
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	koinosmq "github.com/koinos/koinos-mq-golang"
@@ -35,12 +36,14 @@ func main() {
 	handler := bstore.RequestHandler{Backend: backend}
 
 	mq.SetRPCHandler(blockstoreRPC, func(rpcType string, data []byte) ([]byte, error) {
-		//req, ok := rpc.(types.BlockStoreReq)
 		req := types.NewBlockStoreRequest()
 		err := json.Unmarshal(data, req)
 		if err != nil {
 			return nil, err
 		}
+
+		log.Println("Received RPC request")
+		log.Println(" - Request:", string(data))
 
 		var resp = types.NewBlockStoreResponse()
 		resp = handler.HandleRequest(req)
@@ -52,13 +55,21 @@ func main() {
 	})
 
 	mq.SetBroadcastHandler(blockAccept, func(topic string, data []byte) {
-		log.Println("Received message on koinos.block.accept")
-
 		sub := types.NewBlockAccepted()
 		err := json.Unmarshal(data, sub)
 		if err != nil {
 			log.Println("Unable to parse BlockAccepted broadcast")
 			return
+		}
+
+		log.Println("Received broadcasted block")
+		log.Println(" - ID.Digest:", "z"+base58.Encode(sub.Topology.ID.Digest))
+		log.Println(" - ID.Hash:", sub.Topology.ID.ID)
+		log.Println(" - Height:", sub.Topology.Height)
+
+		err = handler.UpdateHighestBlock(&sub.Topology)
+		if err != nil {
+			log.Println("Error while updating highest block")
 		}
 
 		req := types.BlockStoreRequest{
@@ -73,23 +84,6 @@ func main() {
 			},
 		}
 		_ = handler.HandleRequest(&req)
-	})
-
-	mq.SetBroadcastHandler(blockIrreversible, func(topic string, data []byte) {
-		log.Println("Received message on koinos.block.irreversible")
-
-		broadcastMessage := types.NewBlockIrreversible()
-		err := json.Unmarshal(data, broadcastMessage)
-		if err != nil {
-			log.Println("Unable to parse BlockIrreversible broadcast")
-			return
-		}
-
-		err = handler.UpdateLastIrreversible(&broadcastMessage.Topology.ID)
-		if err != nil {
-			log.Println("Error while storing last irreverisible block topology")
-			return
-		}
 	})
 
 	mq.Start()

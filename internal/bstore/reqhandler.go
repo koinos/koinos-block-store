@@ -509,7 +509,7 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 	return &resp, nil
 }
 
-func (handler *RequestHandler) handleGetLastIrreversibleBlockReq(req *types.GetLastIrreversibleBlockRequest) (*types.GetLastIrreversibleBlockResponse, error) {
+func (handler *RequestHandler) handleGetHighestBlockReq(req *types.GetHighestBlockRequest) (*types.GetHighestBlockResponse, error) {
 	key := types.VariableBlob{0x00}
 	recordBytes, err := handler.Backend.Get(key)
 	if err != nil {
@@ -517,22 +517,38 @@ func (handler *RequestHandler) handleGetLastIrreversibleBlockReq(req *types.GetL
 	}
 
 	valueBlob := types.VariableBlob(recordBytes)
-	_, value, err := types.DeserializeMultihash(&valueBlob)
+	_, value, err := types.DeserializeBlockTopology(&valueBlob)
 	if err != nil {
 		log.Println("Could not deserialize last irreversible block ID")
 	}
 
-	response := types.NewGetLastIrreversibleBlockResponse()
-	response.BlockID = *value
+	response := types.NewGetHighestBlockResponse()
+	response.Topology = *value
 	return response, nil
 }
 
-// UpdateLastIrreversible Updates the database metadata with the last irreversible block ID
-func (handler *RequestHandler) UpdateLastIrreversible(blockID *types.Multihash) error {
+// UpdateHighestBlock Updates the database metadata with the highest blocks ID
+func (handler *RequestHandler) UpdateHighestBlock(topology *types.BlockTopology) error {
 	key := types.VariableBlob{0x00}
-	value := blockID.Serialize(types.NewVariableBlob())
 
-	return handler.Backend.Put(key, *value)
+	recordBytes, err := handler.Backend.Get(key)
+	if err != nil {
+		valueBlob := types.VariableBlob(recordBytes)
+		_, currentValue, err := types.DeserializeBlockTopology(&valueBlob)
+		if err != nil {
+			log.Println("Could not deserialize highest block")
+			return errors.New("Current highest block corrupted")
+		}
+
+		// If our current highest block height is greater, do nothing
+		if currentValue.Height >= topology.Height {
+			return nil
+		}
+	}
+
+	newValue := topology.Serialize(types.NewVariableBlob())
+
+	return handler.Backend.Put(key, *newValue)
 }
 
 // HandleRequest handles and routes blockstore requests
@@ -582,9 +598,9 @@ func (handler *RequestHandler) HandleRequest(req *types.BlockStoreRequest) *type
 			response.Value = result
 		}
 		break
-	case *types.GetLastIrreversibleBlockRequest:
-		var result *types.GetLastIrreversibleBlockResponse
-		result, err = handler.handleGetLastIrreversibleBlockReq(v)
+	case *types.GetHighestBlockRequest:
+		var result *types.GetHighestBlockResponse
+		result, err = handler.handleGetHighestBlockReq(v)
 		if err == nil {
 			response.Value = result
 		}

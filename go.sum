@@ -49,6 +49,8 @@ github.com/koinos/koinos-types-golang v0.1.1-0.20210222175758-69b5816ec2e9 h1:mg
 github.com/koinos/koinos-types-golang v0.1.1-0.20210222175758-69b5816ec2e9/go.mod h1:inTj1woeLBXfRICUkKYjW7pCsrVJCBBJvMcOzx7+PSs=
 github.com/koinos/koinos-types-golang v0.1.1-0.20210310204024-f7488ae30dae h1:JcwzNOdyhzjZH9hwswkzfjgDdjHUVh85qZP8JLy0vQA=
 github.com/koinos/koinos-types-golang v0.1.1-0.20210310204024-f7488ae30dae/go.mod h1:inTj1woeLBXfRICUkKYjW7pCsrVJCBBJvMcOzx7+PSs=
+github.com/koinos/koinos-types-golang v0.1.1-0.20210317182745-8db4b4d9cf81 h1:jCoFjlbrKR9UpnmUNFFITKjjiHMsxap83T6DpY3F6rE=
+github.com/koinos/koinos-types-golang v0.1.1-0.20210317182745-8db4b4d9cf81/go.mod h1:inTj1woeLBXfRICUkKYjW7pCsrVJCBBJvMcOzx7+PSs=
 github.com/kr/pretty v0.2.0 h1:s5hAObm+yFO5uHYt5dYjxi2rXrsnmRpJx4OYvIWUaQs=
 github.com/kr/pretty v0.2.0/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=

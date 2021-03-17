@@ -532,7 +532,7 @@ func (handler *RequestHandler) UpdateHighestBlock(topology *types.BlockTopology)
 	key := types.VariableBlob{0x00}
 
 	recordBytes, err := handler.Backend.Get(key)
-	if err != nil {
+	if err == nil && len(recordBytes) > 0 {
 		valueBlob := types.VariableBlob(recordBytes)
 		_, currentValue, err := types.DeserializeBlockTopology(&valueBlob)
 		if err != nil {

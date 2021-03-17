@@ -45,6 +45,8 @@ github.com/jrick/logrotate v1.0.0/go.mod h1:LNinyqDIJnpAur+b8yyulnQw/wDuN1+BYKlT
 github.com/kkdai/bstream v0.0.0-20161212061736-f391b8402d23/go.mod h1:J+Gs4SYgM6CZQHDETBtE9HaSEkGmuNXF86RwHhHUvq4=
 github.com/koinos/koinos-mq-golang v0.0.0-20210205210801-8d044ae15573 h1:MMAxfypYq3BzbeoOWOfNAORDvq2Jpcl+ctP75vnWQjs=
 github.com/koinos/koinos-mq-golang v0.0.0-20210205210801-8d044ae15573/go.mod h1:hpJtYohmiG7AuuEr9IjFwdpuo7t2COEJksEXMfYrtsQ=
+github.com/koinos/koinos-mq-golang v0.0.0-20210311191602-a7ac0bb2d752 h1:UK/Y4t9jIWeAXmsKRtuyhpux9b9un8RnUeQOBcaCxZY=
+github.com/koinos/koinos-mq-golang v0.0.0-20210311191602-a7ac0bb2d752/go.mod h1:hpJtYohmiG7AuuEr9IjFwdpuo7t2COEJksEXMfYrtsQ=
 github.com/koinos/koinos-types-golang v0.1.1-0.20210222175758-69b5816ec2e9 h1:mgK/OyrFutEn3/ELdby7/qRGEaz7G8kqEwPh9IrUNsM=
 github.com/koinos/koinos-types-golang v0.1.1-0.20210222175758-69b5816ec2e9/go.mod h1:inTj1woeLBXfRICUkKYjW7pCsrVJCBBJvMcOzx7+PSs=
 github.com/koinos/koinos-types-golang v0.1.1-0.20210310204024-f7488ae30dae h1:JcwzNOdyhzjZH9hwswkzfjgDdjHUVh85qZP8JLy0vQA=

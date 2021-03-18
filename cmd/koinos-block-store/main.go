@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -63,8 +64,8 @@ func main() {
 		}
 
 		log.Println("Received broadcasted block")
-		log.Println(" - ID.Digest:", "z"+base58.Encode(sub.Topology.ID.Digest))
-		log.Println(" - ID.Hash:", sub.Topology.ID.ID)
+		log.Println(fmt.Sprintf(" - ID: (%d) z%s", sub.Topology.ID.ID, base58.Encode(sub.Topology.ID.Digest)))
+		log.Println(fmt.Sprintf(" - Previous: (%d) z%s", sub.Topology.Previous.ID, base58.Encode(sub.Topology.Previous.Digest)))
 		log.Println(" - Height:", sub.Topology.Height)
 
 		req := types.BlockStoreRequest{

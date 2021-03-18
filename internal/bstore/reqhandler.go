@@ -11,6 +11,10 @@ import (
 	types "github.com/koinos/koinos-types-golang"
 )
 
+const (
+	highestBlockKey = 0x01
+)
+
 // RequestHandler contains a backend object and handles requests
 type RequestHandler struct {
 	Backend BlockStoreBackend
@@ -513,8 +517,7 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 }
 
 func (handler *RequestHandler) handleGetHighestBlockReq(req *types.GetHighestBlockRequest) (*types.GetHighestBlockResponse, error) {
-	key := types.VariableBlob{0x00}
-	recordBytes, err := handler.Backend.Get(key)
+	recordBytes, err := handler.Backend.Get(types.VariableBlob{highestBlockKey})
 
 	if err != nil {
 		return nil, err
@@ -537,9 +540,7 @@ func (handler *RequestHandler) handleGetHighestBlockReq(req *types.GetHighestBlo
 
 // UpdateHighestBlock Updates the database metadata with the highest blocks ID
 func (handler *RequestHandler) UpdateHighestBlock(topology *types.BlockTopology) error {
-	key := types.VariableBlob{0x00}
-
-	recordBytes, err := handler.Backend.Get(key)
+	recordBytes, err := handler.Backend.Get(types.VariableBlob{highestBlockKey})
 	if err == nil && len(recordBytes) > 0 {
 		valueBlob := types.VariableBlob(recordBytes)
 		_, currentValue, err := types.DeserializeBlockTopology(&valueBlob)
@@ -556,7 +557,7 @@ func (handler *RequestHandler) UpdateHighestBlock(topology *types.BlockTopology)
 
 	newValue := topology.Serialize(types.NewVariableBlob())
 
-	return handler.Backend.Put(key, *newValue)
+	return handler.Backend.Put(types.VariableBlob{highestBlockKey}, *newValue)
 }
 
 // HandleRequest handles and routes blockstore requests

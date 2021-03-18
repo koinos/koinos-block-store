@@ -515,14 +515,19 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 func (handler *RequestHandler) handleGetHighestBlockReq(req *types.GetHighestBlockRequest) (*types.GetHighestBlockResponse, error) {
 	key := types.VariableBlob{0x00}
 	recordBytes, err := handler.Backend.Get(key)
+
 	if err != nil {
 		return nil, err
+	}
+
+	if len(recordBytes) == 0 {
+		return nil, &UnexpectedHeightError{}
 	}
 
 	valueBlob := types.VariableBlob(recordBytes)
 	_, value, err := types.DeserializeBlockTopology(&valueBlob)
 	if err != nil {
-		log.Println("Could not deserialize last irreversible block ID")
+		log.Println("Could not deserialize block topology")
 	}
 
 	response := types.NewGetHighestBlockResponse()

@@ -755,7 +755,6 @@ func TestAddTransaction(t *testing.T) {
 
 func TestGetHighestBlock(t *testing.T) {
 	for bType := range backendTypes {
-
 		var blockID types.Multihash
 		blockID.ID = 18
 		blockID.Digest = types.VariableBlob{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A}
@@ -775,11 +774,25 @@ func TestGetHighestBlock(t *testing.T) {
 		b := NewBackend(bType)
 		handler := RequestHandler{b}
 
-		handler.UpdateHighestBlock(&topology)
-
 		req := types.NewGetHighestBlockRequest()
 		blockStoreReq := types.BlockStoreRequest{Value: req}
 		result := handler.HandleRequest(&blockStoreReq)
+
+		errorResponse, ok := result.Value.(*types.BlockStoreErrorResponse)
+		if !ok {
+			t.Error("Did not recieve expected response")
+		}
+
+		unexpectedHeightErr := UnexpectedHeightError{}
+		if string(errorResponse.ErrorText) != unexpectedHeightErr.Error() {
+			t.Error("Unexpected error")
+		}
+
+		handler.UpdateHighestBlock(&topology)
+
+		req = types.NewGetHighestBlockRequest()
+		blockStoreReq = types.BlockStoreRequest{Value: req}
+		result = handler.HandleRequest(&blockStoreReq)
 
 		highestBlockResponse, ok := result.Value.(*types.GetHighestBlockResponse)
 		if !ok {

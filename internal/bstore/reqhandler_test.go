@@ -218,7 +218,8 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, tree [][]uint64, addZe
 			if !ok {
 				t.Error("Expected error adding block")
 			} else {
-				if errval.ErrorText != "Block was not present" {
+				blockNotPresent := BlockNotPresent{nonExistentBlockID}
+				if string(errval.ErrorText) != blockNotPresent.Error() {
 					t.Error("Unexpected error text")
 				}
 			}

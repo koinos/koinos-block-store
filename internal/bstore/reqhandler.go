@@ -46,7 +46,7 @@ type BlockNotPresent struct {
 }
 
 func (e *BlockNotPresent) Error() string {
-	return fmt.Sprintf("Block was not present, Digest: %s, ID: %d", base58.Encode(e.blockID.Digest), e.blockID.ID)
+	return fmt.Sprintf("Block not present - Digest: %s, ID: %d", base58.Encode(e.blockID.Digest), e.blockID.ID)
 }
 
 // TransactionNotPresent is an error type thrown when asking for a transaction that is not contained in the blockstore

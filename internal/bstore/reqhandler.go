@@ -3,10 +3,16 @@ package bstore
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"math/bits"
 
+	base58 "github.com/btcsuite/btcutil/base58"
 	types "github.com/koinos/koinos-types-golang"
+)
+
+const (
+	highestBlockKey = 0x01
 )
 
 // RequestHandler contains a backend object and handles requests
@@ -40,10 +46,11 @@ func (e *InternalError) Error() string {
 
 // BlockNotPresent is an error type thrown when asking for a block that is not contained in the blockstore
 type BlockNotPresent struct {
+	blockID types.Multihash
 }
 
 func (e *BlockNotPresent) Error() string {
-	return "Block was not present"
+	return fmt.Sprintf("Block not present - Digest: %s, ID: %d", base58.Encode(e.blockID.Digest), e.blockID.ID)
 }
 
 // TransactionNotPresent is an error type thrown when asking for a transaction that is not contained in the blockstore
@@ -347,7 +354,7 @@ func getBlockHeight(backend BlockStoreBackend, blockID *types.Multihash) (types.
 		return 0, err
 	}
 	if len(recordBytes) == 0 {
-		return 0, &BlockNotPresent{}
+		return 0, &BlockNotPresent{*blockID}
 	}
 
 	consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))
@@ -376,7 +383,7 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 			return nil, err
 		}
 		if len(recordBytes) == 0 {
-			return nil, &BlockNotPresent{}
+			return nil, &BlockNotPresent{*blockID}
 		}
 
 		consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))
@@ -509,30 +516,48 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 	return &resp, nil
 }
 
-func (handler *RequestHandler) handleGetLastIrreversibleBlockReq(req *types.GetLastIrreversibleBlockRequest) (*types.GetLastIrreversibleBlockResponse, error) {
-	key := types.VariableBlob{0x00}
-	recordBytes, err := handler.Backend.Get(key)
+func (handler *RequestHandler) handleGetHighestBlockReq(req *types.GetHighestBlockRequest) (*types.GetHighestBlockResponse, error) {
+	recordBytes, err := handler.Backend.Get(types.VariableBlob{highestBlockKey})
+
 	if err != nil {
 		return nil, err
 	}
 
-	valueBlob := types.VariableBlob(recordBytes)
-	_, value, err := types.DeserializeMultihash(&valueBlob)
-	if err != nil {
-		log.Println("Could not deserialize last irreversible block ID")
+	if len(recordBytes) == 0 {
+		return nil, &UnexpectedHeightError{}
 	}
 
-	response := types.NewGetLastIrreversibleBlockResponse()
-	response.BlockID = *value
+	valueBlob := types.VariableBlob(recordBytes)
+	_, value, err := types.DeserializeBlockTopology(&valueBlob)
+	if err != nil {
+		log.Println("Could not deserialize block topology")
+	}
+
+	response := types.NewGetHighestBlockResponse()
+	response.Topology = *value
 	return response, nil
 }
 
-// UpdateLastIrreversible Updates the database metadata with the last irreversible block ID
-func (handler *RequestHandler) UpdateLastIrreversible(blockID *types.Multihash) error {
-	key := types.VariableBlob{0x00}
-	value := blockID.Serialize(types.NewVariableBlob())
+// UpdateHighestBlock Updates the database metadata with the highest blocks ID
+func (handler *RequestHandler) UpdateHighestBlock(topology *types.BlockTopology) error {
+	recordBytes, err := handler.Backend.Get(types.VariableBlob{highestBlockKey})
+	if err == nil && len(recordBytes) > 0 {
+		valueBlob := types.VariableBlob(recordBytes)
+		_, currentValue, err := types.DeserializeBlockTopology(&valueBlob)
+		if err != nil {
+			log.Println("Could not deserialize highest block")
+			return errors.New("Current highest block corrupted")
+		}
 
-	return handler.Backend.Put(key, *value)
+		// If our current highest block height is greater, do nothing
+		if currentValue.Height >= topology.Height {
+			return nil
+		}
+	}
+
+	newValue := topology.Serialize(types.NewVariableBlob())
+
+	return handler.Backend.Put(types.VariableBlob{highestBlockKey}, *newValue)
 }
 
 // HandleRequest handles and routes blockstore requests
@@ -582,9 +607,9 @@ func (handler *RequestHandler) HandleRequest(req *types.BlockStoreRequest) *type
 			response.Value = result
 		}
 		break
-	case *types.GetLastIrreversibleBlockRequest:
-		var result *types.GetLastIrreversibleBlockResponse
-		result, err = handler.handleGetLastIrreversibleBlockReq(v)
+	case *types.GetHighestBlockRequest:
+		var result *types.GetHighestBlockResponse
+		result, err = handler.handleGetHighestBlockReq(v)
 		if err == nil {
 			response.Value = result
 		}

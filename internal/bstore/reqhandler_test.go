@@ -218,7 +218,8 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, tree [][]uint64, addZe
 			if !ok {
 				t.Error("Expected error adding block")
 			} else {
-				if errval.ErrorText != "Block was not present" {
+				blockNotPresent := BlockNotPresent{nonExistentBlockID}
+				if string(errval.ErrorText) != blockNotPresent.Error() {
 					t.Error("Unexpected error text")
 				}
 			}
@@ -752,32 +753,164 @@ func TestAddTransaction(t *testing.T) {
 	}
 }
 
-func TestLastIrreversibleBlock(t *testing.T) {
-	var multihash types.Multihash
-	multihash.ID = 18
-	multihash.Digest = types.VariableBlob{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A}
-
+func TestGetHighestBlock(t *testing.T) {
 	for bType := range backendTypes {
+		var blockID types.Multihash
+		blockID.ID = 18
+		blockID.Digest = types.VariableBlob{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A}
+
+		var previousID types.Multihash
+		previousID.ID = 18
+		blockID.Digest = types.VariableBlob{0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14}
+
+		var height types.BlockHeightType
+		height = 2
+
+		var topology types.BlockTopology
+		topology.ID = blockID
+		topology.Previous = previousID
+		topology.Height = height
+
 		b := NewBackend(bType)
 		handler := RequestHandler{b}
 
-		handler.UpdateLastIrreversible(&multihash)
-
-		req := types.NewGetLastIrreversibleBlockRequest()
+		req := types.NewGetHighestBlockRequest()
 		blockStoreReq := types.BlockStoreRequest{Value: req}
 		result := handler.HandleRequest(&blockStoreReq)
 
-		lastIrreversibleBlockResponse, ok := result.Value.(*types.GetLastIrreversibleBlockResponse)
+		errorResponse, ok := result.Value.(*types.BlockStoreErrorResponse)
 		if !ok {
 			t.Error("Did not recieve expected response")
 		}
 
-		if lastIrreversibleBlockResponse.BlockID.ID != multihash.ID {
+		unexpectedHeightErr := UnexpectedHeightError{}
+		if string(errorResponse.ErrorText) != unexpectedHeightErr.Error() {
+			t.Error("Unexpected error")
+		}
+
+		handler.UpdateHighestBlock(&topology)
+
+		req = types.NewGetHighestBlockRequest()
+		blockStoreReq = types.BlockStoreRequest{Value: req}
+		result = handler.HandleRequest(&blockStoreReq)
+
+		highestBlockResponse, ok := result.Value.(*types.GetHighestBlockResponse)
+		if !ok {
+			t.Error("Did not recieve expected response")
+		}
+
+		if highestBlockResponse.Topology.ID.ID != blockID.ID {
 			t.Error("Encountered an ID mismatch")
 		}
 
-		if !bytes.Equal(lastIrreversibleBlockResponse.BlockID.Digest, multihash.Digest) {
+		if !bytes.Equal(highestBlockResponse.Topology.ID.Digest, blockID.Digest) {
 			t.Error("Encountered a digest mismatch")
+		}
+
+		if highestBlockResponse.Topology.Previous.ID != previousID.ID {
+			t.Error("Encountered an ID mismatch")
+		}
+
+		if !bytes.Equal(highestBlockResponse.Topology.Previous.Digest, previousID.Digest) {
+			t.Error("Encountered a digest mismatch")
+		}
+
+		if highestBlockResponse.Topology.Height != height {
+			t.Error("Encountered a height mismatch")
+		}
+
+		var lowerBlockID types.Multihash
+		lowerBlockID.ID = 18
+		lowerBlockID.Digest = types.VariableBlob{0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E}
+
+		var lowerPreviousID types.Multihash
+		lowerPreviousID.ID = 18
+		lowerPreviousID.Digest = types.VariableBlob{0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28}
+
+		var lowerHeight types.BlockHeightType
+		lowerHeight = 1
+
+		var lowerTopology types.BlockTopology
+		lowerTopology.ID = lowerBlockID
+		lowerTopology.Previous = lowerPreviousID
+		lowerTopology.Height = lowerHeight
+
+		handler.UpdateHighestBlock(&lowerTopology)
+
+		req = types.NewGetHighestBlockRequest()
+		blockStoreReq = types.BlockStoreRequest{Value: req}
+		result = handler.HandleRequest(&blockStoreReq)
+
+		highestBlockResponse, ok = result.Value.(*types.GetHighestBlockResponse)
+		if !ok {
+			t.Error("Did not recieve expected response")
+		}
+
+		if highestBlockResponse.Topology.ID.ID != blockID.ID {
+			t.Error("Encountered an ID mismatch")
+		}
+
+		if !bytes.Equal(highestBlockResponse.Topology.ID.Digest, blockID.Digest) {
+			t.Error("Encountered a digest mismatch")
+		}
+
+		if highestBlockResponse.Topology.Previous.ID != previousID.ID {
+			t.Error("Encountered an ID mismatch")
+		}
+
+		if !bytes.Equal(highestBlockResponse.Topology.Previous.Digest, previousID.Digest) {
+			t.Error("Encountered a digest mismatch")
+		}
+
+		if highestBlockResponse.Topology.Height != height {
+			t.Error("Encountered a height mismatch")
+		}
+
+		var higherBlockID types.Multihash
+		higherBlockID.ID = 18
+		higherBlockID.Digest = types.VariableBlob{0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32}
+
+		var higherPreviousID types.Multihash
+		higherPreviousID.ID = 18
+		higherPreviousID.Digest = types.VariableBlob{0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C}
+
+		var higherHeight types.BlockHeightType
+		higherHeight = 3
+
+		var higherTopology types.BlockTopology
+		higherTopology.ID = higherBlockID
+		higherTopology.Previous = higherPreviousID
+		higherTopology.Height = higherHeight
+
+		handler.UpdateHighestBlock(&higherTopology)
+
+		req = types.NewGetHighestBlockRequest()
+		blockStoreReq = types.BlockStoreRequest{Value: req}
+		result = handler.HandleRequest(&blockStoreReq)
+
+		highestBlockResponse, ok = result.Value.(*types.GetHighestBlockResponse)
+		if !ok {
+			t.Error("Did not recieve expected response")
+		}
+
+		if highestBlockResponse.Topology.ID.ID != higherBlockID.ID {
+			t.Error("Encountered an ID mismatch")
+		}
+
+		if !bytes.Equal(highestBlockResponse.Topology.ID.Digest, higherBlockID.Digest) {
+			t.Error("Encountered a digest mismatch")
+		}
+
+		if highestBlockResponse.Topology.Previous.ID != higherPreviousID.ID {
+			t.Error("Encountered an ID mismatch")
+		}
+
+		if !bytes.Equal(highestBlockResponse.Topology.Previous.Digest, higherPreviousID.Digest) {
+			t.Error("Encountered a digest mismatch")
+		}
+
+		if highestBlockResponse.Topology.Height != higherHeight {
+			t.Error("Encountered a height mismatch")
 		}
 	}
 }

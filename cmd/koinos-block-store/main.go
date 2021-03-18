@@ -67,11 +67,6 @@ func main() {
 		log.Println(" - ID.Hash:", sub.Topology.ID.ID)
 		log.Println(" - Height:", sub.Topology.Height)
 
-		err = handler.UpdateHighestBlock(&sub.Topology)
-		if err != nil {
-			log.Println("Error while updating highest block")
-		}
-
 		req := types.BlockStoreRequest{
 			Value: &types.AddBlockRequest{
 				BlockToAdd: types.BlockItem{
@@ -84,6 +79,11 @@ func main() {
 			},
 		}
 		_ = handler.HandleRequest(&req)
+
+		err = handler.UpdateHighestBlock(&sub.Topology)
+		if err != nil {
+			log.Println("Error while updating highest block")
+		}
 	})
 
 	mq.Start()

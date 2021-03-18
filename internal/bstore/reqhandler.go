@@ -3,9 +3,11 @@ package bstore
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"math/bits"
 
+	base58 "github.com/btcsuite/btcutil/base58"
 	types "github.com/koinos/koinos-types-golang"
 )
 
@@ -40,10 +42,11 @@ func (e *InternalError) Error() string {
 
 // BlockNotPresent is an error type thrown when asking for a block that is not contained in the blockstore
 type BlockNotPresent struct {
+	blockID types.Multihash
 }
 
 func (e *BlockNotPresent) Error() string {
-	return "Block was not present"
+	return fmt.Sprintf("Block was not present, Digest: %s, ID: %d", base58.Encode(e.blockID.Digest), e.blockID.ID)
 }
 
 // TransactionNotPresent is an error type thrown when asking for a transaction that is not contained in the blockstore
@@ -347,7 +350,7 @@ func getBlockHeight(backend BlockStoreBackend, blockID *types.Multihash) (types.
 		return 0, err
 	}
 	if len(recordBytes) == 0 {
-		return 0, &BlockNotPresent{}
+		return 0, &BlockNotPresent{*blockID}
 	}
 
 	consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))
@@ -376,7 +379,7 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 			return nil, err
 		}
 		if len(recordBytes) == 0 {
-			return nil, &BlockNotPresent{}
+			return nil, &BlockNotPresent{*blockID}
 		}
 
 		consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))

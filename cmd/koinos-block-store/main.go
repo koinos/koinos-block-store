@@ -2,13 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	base58 "github.com/btcsuite/btcutil/base58"
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	koinosmq "github.com/koinos/koinos-mq-golang"
@@ -64,24 +62,28 @@ func main() {
 		}
 
 		log.Println("Received broadcasted block")
-		log.Println(fmt.Sprintf(" - ID: (%d) z%s", sub.Topology.ID.ID, base58.Encode(sub.Topology.ID.Digest)))
-		log.Println(fmt.Sprintf(" - Previous: (%d) z%s", sub.Topology.Previous.ID, base58.Encode(sub.Topology.Previous.Digest)))
-		log.Println(" - Height:", sub.Topology.Height)
+		jsonID, _ := json.Marshal(sub.Block.ID)
+		jsonPrevious, _ := json.Marshal(sub.Block.Header.Previous)
+
+		log.Printf(" - ID: %v\n", jsonID)
+		log.Printf(" - Previous: %v\n", jsonPrevious)
+		log.Printf(" - Height: %v\n", sub.Block.Header.Height)
 
 		req := types.BlockStoreRequest{
 			Value: &types.AddBlockRequest{
 				BlockToAdd: types.BlockItem{
-					BlockID:      sub.Topology.ID,
-					BlockHeight:  sub.Topology.Height,
 					Block:        *types.NewOpaqueBlockFromNative(sub.Block),
 					BlockReceipt: *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob()),
 				},
-				PreviousBlockID: sub.Topology.Previous,
 			},
 		}
 		_ = handler.HandleRequest(&req)
 
-		err = handler.UpdateHighestBlock(&sub.Topology)
+		err = handler.UpdateHighestBlock(&types.BlockTopology{
+			ID:       sub.Block.ID,
+			Height:   sub.Block.Header.Height,
+			Previous: sub.Block.Header.Previous,
+		})
 		if err != nil {
 			log.Println("Error while updating highest block")
 		}

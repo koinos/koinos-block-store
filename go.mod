@@ -1,4 +1,4 @@
-module github.com/koinos/koinos_block_store
+module github.com/koinos/koinos-block-store
 
 go 1.15
 

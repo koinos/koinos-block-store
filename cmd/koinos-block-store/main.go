@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	base58 "github.com/btcsuite/btcutil/base58"
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	koinosmq "github.com/koinos/koinos-mq-golang"
@@ -63,10 +62,11 @@ func main() {
 		}
 
 		log.Println("Received broadcasted block")
+		jsonID, _ := json.Marshal(sub.Block.ID)
 		jsonPrevious, _ := json.Marshal(sub.Block.Header.Previous)
 
-		log.Printf(" - ID: %v\n", base58.Encode(sub.Block.ID.Digest))
-		log.Printf(" - Previous: %v\n", jsonPrevious)
+		log.Printf(" - ID: %s\n", string(jsonID))
+		log.Printf(" - Previous: %s\n", string(jsonPrevious))
 		log.Printf(" - Height: %v\n", sub.Block.Header.Height)
 
 		req := types.BlockStoreRequest{

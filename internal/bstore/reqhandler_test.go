@@ -186,10 +186,7 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, tree [][]int64, addZer
 				ActiveData:  *types.NewOpaqueActiveBlockData(),
 				PassiveData: *types.NewOpaquePassiveBlockData(),
 			})
-			/*jsonID, _ := json.Marshal(GetBlockID(tree[i][j]))
-			jsonPrevious, _ := json.Marshal(GetBlockID(tree[i][j-1]))
 
-			fmt.Printf("ID: %v, Previous: %v, Height; %v\n", string(jsonID), string(jsonPrevious), tree[i][j]%100)*/
 			addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(GetBlockReceipt(tree[i][j]))
 
 			genericReq := types.BlockStoreRequest{Value: &addReq}

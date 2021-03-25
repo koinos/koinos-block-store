@@ -133,7 +133,7 @@ func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDRe
 		result.BlockItems[i].BlockHeight = record.BlockHeight
 
 		if req.ReturnBlockBlob {
-			result.BlockItems[i].Block = record.Block
+			result.BlockItems[i].Block = *types.NewOpaqueBlockFromNative(record.Block)
 		}
 
 		if req.ReturnReceiptBlob {
@@ -208,7 +208,7 @@ func (handler *RequestHandler) fillBlocks(
 		blockItems[k].BlockID = lastID
 		blockItems[k].BlockHeight = record.BlockHeight
 		if returnBlock {
-			blockItems[k].Block = record.Block
+			blockItems[k].Block = *types.NewOpaqueBlockFromNative(record.Block)
 		}
 		if returnReceipt {
 			blockItems[k].BlockReceipt = record.BlockReceipt
@@ -425,15 +425,20 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 
 func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockRequest) (*types.AddBlockResponse, error) {
 
+	req.BlockToAdd.Block.Unbox()
+	block, err := req.BlockToAdd.Block.GetNative()
+	if err != nil {
+		return nil, err
+	}
 	record := types.BlockRecord{}
 
-	record.BlockID = req.BlockToAdd.BlockID
-	record.BlockHeight = req.BlockToAdd.BlockHeight
-	record.Block = req.BlockToAdd.Block
+	record.BlockID = block.ID
+	record.BlockHeight = block.Header.Height
+	record.Block = *block
 	record.BlockReceipt = req.BlockToAdd.BlockReceipt
 
-	if req.BlockToAdd.BlockHeight > 1 {
-		previousHeights := getPreviousHeights(uint64(req.BlockToAdd.BlockHeight))
+	if block.Header.Height > 1 {
+		previousHeights := getPreviousHeights(uint64(block.Header.Height))
 
 		record.PreviousBlockIds = make([]types.Multihash, len(previousHeights))
 
@@ -442,9 +447,9 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockRequest) (*t
 			if h >= uint64(record.BlockHeight) {
 				return nil, &InternalError{}
 			} else if h == uint64(record.BlockHeight)-1 {
-				record.PreviousBlockIds[i] = req.PreviousBlockID
+				record.PreviousBlockIds[i] = block.Header.Previous
 			} else {
-				previousID, err := getAncestorIDAtHeight(handler.Backend, &req.PreviousBlockID, types.BlockHeightType(h))
+				previousID, err := getAncestorIDAtHeight(handler.Backend, &block.Header.Previous, types.BlockHeightType(h))
 				if err != nil {
 					return nil, err
 				}
@@ -453,13 +458,13 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockRequest) (*t
 		}
 	} else {
 		record.PreviousBlockIds = make([]types.Multihash, 1)
-		record.PreviousBlockIds[0] = req.PreviousBlockID
+		record.PreviousBlockIds[0] = block.Header.Previous
 	}
 
 	vbKey := record.BlockID.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
 
-	err := handler.Backend.Put(*vbKey, *vbValue)
+	err = handler.Backend.Put(*vbKey, *vbValue)
 	if err != nil {
 		return nil, err
 	}
@@ -472,7 +477,7 @@ func (handler *RequestHandler) handleAddTransactionReq(req *types.AddTransaction
 	record := types.TransactionRecord{}
 	record.Transaction = req.Transaction
 
-	vbKey := req.TransactionID.Serialize(types.NewVariableBlob())
+	vbKey := req.Transaction.ID.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
 
 	err := handler.Backend.Put(*vbKey, *vbValue)

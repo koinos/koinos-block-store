@@ -120,9 +120,13 @@ func TestGetPreviousHeights(t *testing.T) {
 	}
 }
 
-func GetBlockID(num uint64) types.Multihash {
+func GetBlockID(num int64) types.Multihash {
+	if num < 0 {
+		return GetEmptyBlockID()
+	}
+
 	dataBytes := make([]byte, binary.MaxVarintLen64)
-	count := binary.PutUvarint(dataBytes, num)
+	count := binary.PutUvarint(dataBytes, uint64(num))
 
 	hash := sha256.Sum256(dataBytes[:count])
 
@@ -136,29 +140,27 @@ func GetEmptyBlockID() types.Multihash {
 	return types.Multihash{ID: 0x12, Digest: vb}
 }
 
-func GetBlockBody(num uint64) *types.VariableBlob {
-	greetings := []string{
-		"Hello this is block %d.",
-		"Greetings from block %d.",
-		"I like being in block %d.",
+func GetBlockBody(num int64, prev int64) *types.Block {
+	return &types.Block{
+		ID: GetBlockID(num),
+		Header: types.BlockHeader{
+			Previous: GetBlockID(prev),
+			Height:   types.BlockHeightType(num),
+		},
+		ActiveData:  *types.NewOpaqueActiveBlockData(),
+		PassiveData: *types.NewOpaquePassiveBlockData(),
 	}
-
-	vb := types.VariableBlob([]byte(fmt.Sprintf(greetings[int(num)%len(greetings)], num)))
-	return &vb
 }
 
-func GetBlockReceipt(num uint64) *types.VariableBlob {
+func GetBlockReceipt(num int64) *types.VariableBlob {
 	vb := types.VariableBlob([]byte(fmt.Sprintf("Receipt for block %d", num)))
 	return &vb
 }
 
-func BuildTestTree(t *testing.T, handler *RequestHandler, tree [][]uint64, addZeroBlock bool) {
+func BuildTestTree(t *testing.T, handler *RequestHandler, tree [][]int64, addZeroBlock bool) {
 	if addZeroBlock {
 		addReq := types.AddBlockRequest{}
-		addReq.BlockToAdd.BlockID = GetBlockID(0)
-		addReq.PreviousBlockID = GetEmptyBlockID()
-		addReq.BlockToAdd.BlockHeight = 0
-		addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromBlob(GetBlockBody(0))
+		addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromNative(*GetBlockBody(0, -1))
 		addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(GetBlockReceipt(0))
 
 		genericReq := types.BlockStoreRequest{Value: &addReq}
@@ -174,14 +176,17 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, tree [][]uint64, addZe
 
 	for i := 0; i < len(tree); i++ {
 		for j := 1; j < len(tree[i]); j++ {
-			blockID := GetBlockID(tree[i][j])
-			parentID := GetBlockID(tree[i][j-1])
-
 			addReq := types.AddBlockRequest{}
-			addReq.BlockToAdd.BlockID = blockID
-			addReq.PreviousBlockID = parentID
-			addReq.BlockToAdd.BlockHeight = types.BlockHeightType(tree[i][j] % 100)
-			addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromBlob(GetBlockBody(tree[i][j]))
+			addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromNative(types.Block{
+				ID: GetBlockID(tree[i][j]),
+				Header: types.BlockHeader{
+					Previous: GetBlockID(tree[i][j-1]),
+					Height:   types.BlockHeightType(tree[i][j] % 100),
+				},
+				ActiveData:  *types.NewOpaqueActiveBlockData(),
+				PassiveData: *types.NewOpaquePassiveBlockData(),
+			})
+
 			addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(GetBlockReceipt(tree[i][j]))
 
 			genericReq := types.BlockStoreRequest{Value: &addReq}
@@ -197,6 +202,7 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, tree [][]uint64, addZe
 			}
 			errval, ok := result.Value.(*types.BlockStoreErrorResponse)
 			if ok {
+				fmt.Printf("%v\n", addReq)
 				t.Error("Got error adding block:", errval.ErrorText)
 			}
 
@@ -232,7 +238,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 	handler := RequestHandler{b}
 
 	// A compact notation of the tree of forks we want to create for the test
-	tree := [][]uint64{
+	tree := [][]int64{
 		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
 		{103, 204, 205, 206, 207, 208, 209, 210, 211},
 		{103, 304, 305, 306, 307},
@@ -243,7 +249,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		{714, 815, 816, 817, 818, 819},
 	}
 	// A compact notation of the history of each of the heads
-	treeHist := [][]uint64{
+	treeHist := [][]int64{
 		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
 		{0, 101, 102, 103, 204, 205, 206, 207, 208, 209, 210, 211},
 		{0, 101, 102, 103, 304, 305, 306, 307},
@@ -255,7 +261,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 	}
 
 	// Item {105, 120, 4, 104} means for blocks 105-120, the ancestor at height 4 is block 104.
-	ancestorCases := [][]uint64{
+	ancestorCases := [][]int64{
 		{101, 120, 1, 101}, {102, 120, 2, 102}, {103, 120, 3, 103}, {104, 120, 4, 104},
 		{105, 120, 5, 105}, {106, 120, 6, 106}, {107, 120, 7, 107}, {108, 120, 8, 108}, {109, 120, 9, 109},
 		{110, 120, 10, 110}, {111, 120, 11, 111}, {112, 120, 12, 112}, {113, 120, 13, 113}, {114, 120, 14, 114},
@@ -435,7 +441,7 @@ func TestAddBlocks(t *testing.T) {
 }
 
 func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
-	tree := [][]uint64{
+	tree := [][]int64{
 		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113},
 		{0, 101, 102, 103, 204, 205, 206, 207, 208, 209, 210, 211},
 		{0, 101, 102, 103, 304, 305, 306, 307},
@@ -445,7 +451,7 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 	handler := RequestHandler{b}
 	BuildTestTree(t, &handler, tree, true)
 
-	getBlocksByID := func(ids []uint64, returnBlock bool, returnReceipt bool, errText string) []types.BlockItem {
+	getBlocksByID := func(ids []int64, returnBlock bool, returnReceipt bool, errText string) []types.BlockItem {
 		req := types.NewGetBlocksByIDRequest()
 		req.BlockID = make([]types.Multihash, len(ids))
 		for i := 0; i < len(ids); i++ {
@@ -479,7 +485,7 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 		return result.Value.(*types.GetBlocksByIDResponse).BlockItems
 	}
 
-	testCases := [][]uint64{
+	testCases := [][]int64{
 		{}, {101, 102, 103}, {108, 109, 110}, {206, 104, 307, 111},
 		{990}, {990, 991}, {990, 108, 991, 992, 104},
 	}
@@ -534,7 +540,7 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 					t.Error("Unexpected block ID")
 					return
 				}
-				if uint64(result[j].BlockHeight) != testCases[i][j]%100 {
+				if int64(result[j].BlockHeight) != testCases[i][j]%100 {
 					t.Error("Unexpected block height")
 				}
 				checkLengths(&result[j])
@@ -562,7 +568,13 @@ func TestGetBlocksByID(t *testing.T) {
 func GetAddTransactionReq(n types.UInt64) types.AddTransactionRequest {
 	vb := n.Serialize(types.NewVariableBlob())
 	m := types.Multihash{ID: 0x12, Digest: *vb}
-	r := types.AddTransactionRequest{TransactionID: m, Transaction: *types.NewOpaqueTransactionFromBlob(vb)}
+	r := types.AddTransactionRequest{
+		Transaction: types.Transaction{
+			ID:          m,
+			ActiveData:  *types.NewOpaqueActiveTransactionData(),
+			PassiveData: *types.NewOpaquePassiveTransactionData(),
+		},
+	}
 	return r
 }
 
@@ -601,7 +613,7 @@ func (backend *TxnBadBackend) Put(key []byte, value []byte) error {
 
 // Get gets an error
 func (backend *TxnBadBackend) Get(key []byte) ([]byte, error) {
-	return []byte{255, 255, 255, 255, 255}, nil
+	return []byte{0, 0, 255, 255, 255, 255, 255}, nil
 }
 
 type TxnLongBackend struct {
@@ -671,7 +683,7 @@ func TestAddTransaction(t *testing.T) {
 			}
 
 			for i, nt := range tres.TransactionItems {
-				if !bytes.Equal(*reqs[i].Transaction.GetBlob(), *nt.Transaction.GetBlob()) {
+				if !bytes.Equal(*&reqs[i].Transaction.ID.Digest, *&nt.Transaction.ID.Digest) {
 					t.Error("Result does not match added transaction")
 				}
 			}

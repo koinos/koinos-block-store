@@ -65,8 +65,8 @@ func main() {
 		jsonID, _ := json.Marshal(sub.Block.ID)
 		jsonPrevious, _ := json.Marshal(sub.Block.Header.Previous)
 
-		log.Printf(" - ID: %v\n", jsonID)
-		log.Printf(" - Previous: %v\n", jsonPrevious)
+		log.Printf(" - ID: %s\n", string(jsonID))
+		log.Printf(" - Previous: %s\n", string(jsonPrevious))
 		log.Printf(" - Height: %v\n", sub.Block.Header.Height)
 
 		req := types.BlockStoreRequest{

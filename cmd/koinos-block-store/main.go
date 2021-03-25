@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	blockstoreRPC     string = "koinos_block"
+	blockstoreRPC     string = "block_store"
 	blockAccept       string = "koinos.block.accept"
 	blockIrreversible string = "koinos.block.irreversible"
 )

@@ -25,7 +25,8 @@ const (
 
 func main() {
 	var baseDir = flag.StringP("basedir", "b", getKoinosDir(), "the base directory")
-	var amqpFlag = flag.StringP("amqp", "a", "amqp://guest:guest@localhost:5672/", "AMQP server URL")
+	var amqp = flag.StringP("amqp", "a", "amqp://guest:guest@localhost:5672/", "AMQP server URL")
+	var reset = flag.BoolP("reset", "r", false, "reset the database")
 
 	flag.Parse()
 
@@ -36,9 +37,16 @@ func main() {
 
 	var opts = badger.DefaultOptions(dbDir)
 	var backend = bstore.NewBadgerBackend(opts)
+
+	// Reset backend if requested
+	if *reset {
+		log.Println("Resetting the database")
+		backend.Reset()
+	}
+
 	defer backend.Close()
 
-	mq := koinosmq.NewKoinosMQ(*amqpFlag)
+	mq := koinosmq.NewKoinosMQ(*amqp)
 
 	handler := bstore.RequestHandler{Backend: backend}
 

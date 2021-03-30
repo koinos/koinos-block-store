@@ -21,6 +21,7 @@ const (
 	blockAccept       string = "koinos.block.accept"
 	blockIrreversible string = "koinos.block.irreversible"
 	appName           string = "block_store"
+	baseName          string = ".koinos"
 )
 
 func main() {
@@ -128,7 +129,7 @@ func getHomeDir() string {
 }
 
 func getKoinosDir() string {
-	return path.Join(getHomeDir(), ".koinos")
+	return path.Join(getHomeDir(), baseName)
 }
 
 func getAppDir(baseDir string, appName string) string {

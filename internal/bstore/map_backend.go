@@ -15,6 +15,7 @@ func NewMapBackend() *MapBackend {
 	return &MapBackend{make(map[string][]byte)}
 }
 
+// Reset resets the database
 func (backend *MapBackend) Reset() error {
 	backend.storage = make(map[string][]byte)
 	return nil

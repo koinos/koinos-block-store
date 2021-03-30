@@ -22,7 +22,7 @@ func (backend *BadgerBackend) Close() {
 	backend.DB.Close()
 }
 
-// Reset
+// Reset resets the database
 func (backend *BadgerBackend) Reset() error {
 	return backend.DB.DropAll()
 }

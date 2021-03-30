@@ -31,16 +31,16 @@ func main() {
 	flag.Parse()
 
 	// Costruct the db directory and ensure it exists
-	dbDir := path.Join((*baseDir), appName, "db")
+	dbDir := path.Join(getAppDir((*baseDir), appName), "db")
 	ensureDir(dbDir)
-	log.Println(dbDir)
+	log.Printf("Opening database at %s", dbDir)
 
 	var opts = badger.DefaultOptions(dbDir)
 	var backend = bstore.NewBadgerBackend(opts)
 
 	// Reset backend if requested
 	if *reset {
-		log.Println("Resetting the database")
+		log.Println("Resetting database")
 		backend.Reset()
 	}
 

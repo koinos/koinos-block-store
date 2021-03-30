@@ -22,6 +22,11 @@ func (backend *BadgerBackend) Close() {
 	backend.DB.Close()
 }
 
+// Reset
+func (backend *BadgerBackend) Reset() error {
+	return backend.DB.DropAll()
+}
+
 // Put backend setter
 func (backend *BadgerBackend) Put(key, value []byte) error {
 	if value == nil {

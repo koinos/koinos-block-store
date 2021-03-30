@@ -15,6 +15,11 @@ func NewMapBackend() *MapBackend {
 	return &MapBackend{make(map[string][]byte)}
 }
 
+func (backend *MapBackend) Reset() error {
+	backend.storage = make(map[string][]byte)
+	return nil
+}
+
 // Put adds the requested value to the database
 func (backend *MapBackend) Put(key []byte, value []byte) error {
 	if key == nil {

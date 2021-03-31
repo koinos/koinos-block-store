@@ -54,6 +54,7 @@ type BlockTree struct {
 	Numbers []uint64
 }
 
+// NewMockBlock creates a new MockBlock object.
 func NewMockBlock() *MockBlock {
 	mb := MockBlock{
 		Previous:      0,
@@ -68,11 +69,13 @@ func NewMockBlock() *MockBlock {
 	return &mb
 }
 
+// GetEmptyBlockID computes the zero block ID (i.e. Previous of first block applied to genesis state)
 func GetEmptyBlockID() types.Multihash {
 	vb := types.VariableBlob(make([]byte, 32))
 	return types.Multihash{ID: 0x12, Digest: vb}
 }
 
+// ComputeBlockID computes the block ID according to cryptographic constraints
 func ComputeBlockID(block *types.Block) types.Multihash {
 	vbHeader := types.NewVariableBlob()
 	vbHeader = block.Header.Serialize(vbHeader)
@@ -89,12 +92,13 @@ func ComputeBlockID(block *types.Block) types.Multihash {
 	return types.Multihash{ID: 0x12, Digest: vbHash}
 }
 
+// ToBlockTree converts a MockBlockTree to a BlockTree
 func ToBlockTree(mbt *MockBlockTree) *BlockTree {
 	nums := make([]uint64, len(mbt.ByNum))
 	i := 0
-	for num, _ := range mbt.ByNum {
+	for num := range mbt.ByNum {
 		nums[i] = num
-		i += 1
+		i++
 	}
 	sort.Slice(nums, func(i, j int) bool { return nums[i] < nums[j] })
 	bt := BlockTree{
@@ -132,6 +136,7 @@ func ToBlockTree(mbt *MockBlockTree) *BlockTree {
 	return &bt
 }
 
+// NewMockBlockTree creates a MockBlockTree from a tree specification
 func NewMockBlockTree(tree [][]uint64) *MockBlockTree {
 	mbt := MockBlockTree{
 		ByNum: make(map[uint64]*MockBlock),

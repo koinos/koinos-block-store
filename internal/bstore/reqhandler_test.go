@@ -449,9 +449,8 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 	getID := func(num uint64) types.Multihash {
 		if num < 900 {
 			return bt.ByNum[num].ID
-		} else {
-			return GetNonExistentBlockID(num)
 		}
+		return GetNonExistentBlockID(num)
 	}
 
 	getBlocksByID := func(ids []uint64, returnBlock bool, returnReceipt bool, errText string) []types.BlockItem {

@@ -120,13 +120,10 @@ func TestGetPreviousHeights(t *testing.T) {
 	}
 }
 
-func GetBlockID(num int64) types.Multihash {
-	if num < 0 {
-		return GetEmptyBlockID()
-	}
-
+// GetNonExistentBlockID returns a made-up block ID that shouldn't correspond to any actual block.
+func GetNonExistentBlockID(num uint64) types.Multihash {
 	dataBytes := make([]byte, binary.MaxVarintLen64)
-	count := binary.PutUvarint(dataBytes, uint64(num))
+	count := binary.PutUvarint(dataBytes, num)
 
 	hash := sha256.Sum256(dataBytes[:count])
 
@@ -135,99 +132,57 @@ func GetBlockID(num int64) types.Multihash {
 	return types.Multihash{ID: 0x12, Digest: vb}
 }
 
-func GetEmptyBlockID() types.Multihash {
-	vb := types.VariableBlob(make([]byte, 32))
-	return types.Multihash{ID: 0x12, Digest: vb}
-}
+func BuildTestTree(t *testing.T, handler *RequestHandler, bt *BlockTree) {
+	nonExistentBlockID := GetNonExistentBlockID(999)
 
-func GetBlockBody(num int64, prev int64) *types.Block {
-	return &types.Block{
-		ID: GetBlockID(num),
-		Header: types.BlockHeader{
-			Previous: GetBlockID(prev),
-			Height:   types.BlockHeightType(num),
-		},
-		ActiveData:  *types.NewOpaqueActiveBlockData(),
-		PassiveData: *types.NewOpaquePassiveBlockData(),
-	}
-}
+	for _, num := range bt.Numbers {
 
-func GetBlockReceipt(num int64) *types.VariableBlob {
-	vb := types.VariableBlob([]byte(fmt.Sprintf("Receipt for block %d", num)))
-	return &vb
-}
-
-func BuildTestTree(t *testing.T, handler *RequestHandler, tree [][]int64, addZeroBlock bool) {
-	if addZeroBlock {
 		addReq := types.AddBlockRequest{}
-		addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromNative(*GetBlockBody(0, -1))
-		addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(GetBlockReceipt(0))
+		addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromNative(*bt.ByNum[num])
+		receipt := bt.ReceiptByNum[num]
+		addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(&receipt)
+		addReq.BlockToAdd.BlockID = bt.ByNum[num].ID
+		addReq.BlockToAdd.BlockHeight = bt.ByNum[num].Header.Height
 
 		genericReq := types.BlockStoreRequest{Value: &addReq}
 
+		_, err := json.Marshal(genericReq)
+		if err != nil {
+			t.Error("Could not marshal JSON", err)
+		}
+		// fmt.Printf("Request: %s\n", j)
+
 		result := handler.HandleRequest(&genericReq)
+		if result == nil {
+			t.Error("Got nil result")
+		}
 		errval, ok := result.Value.(*types.BlockStoreErrorResponse)
 		if ok {
-			t.Error("Could not add block 0: ", errval.ErrorText)
+			fmt.Printf("%v\n", addReq)
+			t.Error("Got error adding block:", errval.ErrorText)
 		}
-	}
 
-	nonExistentBlockID := GetBlockID(999)
+		getNeReq := types.GetBlocksByHeightRequest{}
+		getNeReq.HeadBlockID = nonExistentBlockID
+		getNeReq.AncestorStartHeight = bt.ByNum[num].Header.Height - 1
+		getNeReq.NumBlocks = 1
+		getNeReq.ReturnBlock = false
+		getNeReq.ReturnReceipt = false
 
-	for i := 0; i < len(tree); i++ {
-		for j := 1; j < len(tree[i]); j++ {
-			addReq := types.AddBlockRequest{}
-			addReq.BlockToAdd.Block = *types.NewOpaqueBlockFromNative(types.Block{
-				ID: GetBlockID(tree[i][j]),
-				Header: types.BlockHeader{
-					Previous: GetBlockID(tree[i][j-1]),
-					Height:   types.BlockHeightType(tree[i][j] % 100),
-				},
-				ActiveData:  *types.NewOpaqueActiveBlockData(),
-				PassiveData: *types.NewOpaquePassiveBlockData(),
-			})
+		genericNeReq := types.BlockStoreRequest{Value: &getNeReq}
+		_, err = json.Marshal(genericNeReq)
+		if err != nil {
+			t.Error("Could not marshal JSON", err)
+		}
 
-			addReq.BlockToAdd.BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(GetBlockReceipt(tree[i][j]))
-
-			genericReq := types.BlockStoreRequest{Value: &addReq}
-
-			_, err := json.Marshal(genericReq)
-			if err != nil {
-				t.Error("Could not marshal JSON", err)
-			}
-
-			result := handler.HandleRequest(&genericReq)
-			if result == nil {
-				t.Error("Got nil result")
-			}
-			errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-			if ok {
-				fmt.Printf("%v\n", addReq)
-				t.Error("Got error adding block:", errval.ErrorText)
-			}
-
-			getNeReq := types.GetBlocksByHeightRequest{}
-			getNeReq.HeadBlockID = nonExistentBlockID
-			getNeReq.AncestorStartHeight = types.BlockHeightType(j - 1)
-			getNeReq.NumBlocks = 1
-			getNeReq.ReturnBlock = false
-			getNeReq.ReturnReceipt = false
-
-			genericNeReq := types.BlockStoreRequest{Value: &getNeReq}
-			_, err = json.Marshal(genericNeReq)
-			if err != nil {
-				t.Error("Could not marshal JSON", err)
-			}
-
-			result = handler.HandleRequest(&genericNeReq)
-			errval, ok = result.Value.(*types.BlockStoreErrorResponse)
-			if !ok {
-				t.Error("Expected error adding block")
-			} else {
-				blockNotPresent := BlockNotPresent{nonExistentBlockID}
-				if string(errval.ErrorText) != blockNotPresent.Error() {
-					t.Error("Unexpected error text")
-				}
+		result = handler.HandleRequest(&genericNeReq)
+		errval, ok = result.Value.(*types.BlockStoreErrorResponse)
+		if !ok {
+			t.Error("Expected error adding block")
+		} else {
+			blockNotPresent := BlockNotPresent{nonExistentBlockID}
+			if string(errval.ErrorText) != blockNotPresent.Error() {
+				t.Error("Unexpected error text")
 			}
 		}
 	}
@@ -238,7 +193,24 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 	handler := RequestHandler{b}
 
 	// A compact notation of the tree of forks we want to create for the test
-	tree := [][]int64{
+	//
+	// The notation here expresses the following forks:
+	//
+	// 101 -> 102 -> 103 -> 104 -> 105 -> 106 -> 107 -> 108 -> 109 -> 110 -> 111 -> 112 -> 113 -> 114 -> 115 -> 116 -> 117 -> 118 -> 119 -> 120
+	//                |                    |                    |                    |
+	//                |                    |                    |---> 510 -> 511     |---> 613 -> 614
+	//                |                    |
+	//                |                    |---> 407 -> 408 -> 409 -> 410 -> 411 -> 412 -> 413 -> 414 -> 415 -> 416 -> 417 -> 418 -> 419
+	//                |                                                       |
+	//                |                                                       |---> 712 -> 713 -> 714 -> 715 -> 716 -> 717 -> 718
+	//                |                                                                            |
+	//                |                                                                            |---> 815 -> 816 -> 817 -> 818 -> 819
+	//                |
+	//                |---> 204 -> 205 -> 206 -> 207 -> 208 -> 209 -> 210 -> 211
+	//                |
+	//                |---> 304 -> 305 -> 306 -> 307
+	//
+	tree := [][]uint64{
 		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
 		{103, 204, 205, 206, 207, 208, 209, 210, 211},
 		{103, 304, 305, 306, 307},
@@ -248,8 +220,13 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		{411, 712, 713, 714, 715, 716, 717, 718},
 		{714, 815, 816, 817, 818, 819},
 	}
+
 	// A compact notation of the history of each of the heads
-	treeHist := [][]int64{
+	//
+	// Each line expresses a sequence from root to tip.
+	// We use this table to test NumBlocks > 1 cases
+	//
+	treeHist := [][]uint64{
 		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120},
 		{0, 101, 102, 103, 204, 205, 206, 207, 208, 209, 210, 211},
 		{0, 101, 102, 103, 304, 305, 306, 307},
@@ -260,8 +237,11 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		{0, 101, 102, 103, 104, 105, 106, 407, 408, 409, 410, 411, 712, 713, 714, 815, 816, 817, 818, 819},
 	}
 
+	// A compact notation of the test cases for GetAncestorAtHeight
+	//
 	// Item {105, 120, 4, 104} means for blocks 105-120, the ancestor at height 4 is block 104.
-	ancestorCases := [][]int64{
+	//
+	ancestorCases := [][]uint64{
 		{101, 120, 1, 101}, {102, 120, 2, 102}, {103, 120, 3, 103}, {104, 120, 4, 104},
 		{105, 120, 5, 105}, {106, 120, 6, 106}, {107, 120, 7, 107}, {108, 120, 8, 108}, {109, 120, 9, 109},
 		{110, 120, 10, 110}, {111, 120, 11, 111}, {112, 120, 12, 112}, {113, 120, 13, 113}, {114, 120, 14, 114},
@@ -299,13 +279,24 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		{815, 819, 15, 815}, {816, 819, 16, 816}, {817, 819, 17, 817}, {818, 819, 18, 818}, {819, 819, 19, 819},
 	}
 
-	BuildTestTree(t, &handler, tree, addZeroBlock)
+	if addZeroBlock {
+		tree[0] = []uint64{0, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120}
+	}
+
+	mbt := NewMockBlockTree(tree)
+	bt := ToBlockTree(mbt)
+
+	for _, num := range bt.Numbers {
+		bt.ByNum[num].Header.Height = types.BlockHeightType(num % 100)
+	}
+
+	BuildTestTree(t, &handler, bt)
 
 	for i := 0; i < len(ancestorCases); i++ {
 		for b := ancestorCases[i][0]; b <= ancestorCases[i][1]; b++ {
-			blockID := GetBlockID(b)
+			blockID := bt.ByNum[b].ID
 			height := ancestorCases[i][2]
-			expectedAncestorID := GetBlockID(ancestorCases[i][3])
+			expectedAncestorID := bt.ByNum[ancestorCases[i][3]].ID
 
 			getReq := types.GetBlocksByHeightRequest{}
 			getReq.HeadBlockID = blockID
@@ -346,33 +337,31 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		}
 	}
 
-	for i := 0; i < len(tree); i++ {
-		for j := 1; j < len(tree[i]); j++ {
-			blockID := GetBlockID(tree[i][j])
-			height := tree[i][j] % 100
+	for _, num := range bt.Numbers {
+		blockID := bt.ByNum[num].ID
+		height := bt.ByNum[num].Header.Height
 
-			getReq := types.GetBlocksByHeightRequest{}
-			getReq.HeadBlockID = blockID
-			getReq.NumBlocks = 1
-			getReq.ReturnBlock = false
-			getReq.ReturnReceipt = false
+		getReq := types.GetBlocksByHeightRequest{}
+		getReq.HeadBlockID = blockID
+		getReq.NumBlocks = 1
+		getReq.ReturnBlock = false
+		getReq.ReturnReceipt = false
 
-			// GetAncestorAtHeight where the requested height is equal to the height of the requested head
-			getReq.AncestorStartHeight = types.BlockHeightType(height + 1)
+		// GetAncestorAtHeight where the requested height is equal to the height of the requested head
+		getReq.AncestorStartHeight = types.BlockHeightType(height + 1)
 
-			genericReq := types.BlockStoreRequest{Value: &getReq}
+		genericReq := types.BlockStoreRequest{Value: &getReq}
 
-			result := handler.HandleRequest(&genericReq)
-			if result == nil {
-				t.Error("Got nil result")
-			}
-			errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-			if !ok {
-				t.Error("Unexpectedly got non-error result attempting to retrieve descendant block:", result)
-			} else {
-				if errval.ErrorText != "Block height mismatch" {
-					t.Error("Unexpected error text")
-				}
+		result := handler.HandleRequest(&genericReq)
+		if result == nil {
+			t.Error("Got nil result")
+		}
+		errval, ok := result.Value.(*types.BlockStoreErrorResponse)
+		if !ok {
+			t.Error("Unexpectedly got non-error result attempting to retrieve descendant block:", result)
+		} else {
+			if errval.ErrorText != "Block height mismatch" {
+				t.Error("Unexpected error text")
 			}
 		}
 	}
@@ -380,7 +369,8 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 	// Check querying all possible past ranges from head at end of sequence
 	for i := 0; i < len(tree); i++ {
 		headIndex := len(tree[i]) - 1
-		headID := GetBlockID(tree[i][headIndex])
+		headNum := tree[i][headIndex]
+		headID := bt.ByNum[headNum].ID
 
 		for j := 1; j < len(treeHist[i]); j++ {
 			// Iterate beyond the tree
@@ -421,7 +411,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 					if resp.BlockItems[checkIndex].BlockHeight != expectedHeight {
 						t.Error("Unexpected block height in response")
 					}
-					expectedBlockID := GetBlockID(blockSeq[checkIndex])
+					expectedBlockID := bt.ByNum[blockSeq[checkIndex]].ID
 					if !resp.BlockItems[checkIndex].BlockID.Equals(&expectedBlockID) {
 						t.Error("Unexpected ancestor block ID")
 					}
@@ -441,21 +431,34 @@ func TestAddBlocks(t *testing.T) {
 }
 
 func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
-	tree := [][]int64{
+	tree := [][]uint64{
 		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113},
-		{0, 101, 102, 103, 204, 205, 206, 207, 208, 209, 210, 211},
-		{0, 101, 102, 103, 304, 305, 306, 307},
+		{103, 204, 205, 206, 207, 208, 209, 210, 211},
+		{103, 304, 305, 306, 307},
 	}
 
 	b := NewMapBackend()
 	handler := RequestHandler{b}
-	BuildTestTree(t, &handler, tree, true)
+	mbt := NewMockBlockTree(tree)
+	for _, mb := range mbt.ByNum {
+		mb.Receipt = types.VariableBlob(fmt.Sprintf("Receipt for block %d", mb.Num))
+	}
+	bt := ToBlockTree(mbt)
+	BuildTestTree(t, &handler, bt)
 
-	getBlocksByID := func(ids []int64, returnBlock bool, returnReceipt bool, errText string) []types.BlockItem {
+	getID := func(num uint64) types.Multihash {
+		if num < 900 {
+			return bt.ByNum[num].ID
+		} else {
+			return GetNonExistentBlockID(num)
+		}
+	}
+
+	getBlocksByID := func(ids []uint64, returnBlock bool, returnReceipt bool, errText string) []types.BlockItem {
 		req := types.NewGetBlocksByIDRequest()
 		req.BlockID = make([]types.Multihash, len(ids))
 		for i := 0; i < len(ids); i++ {
-			req.BlockID[i] = GetBlockID(ids[i])
+			req.BlockID[i] = getID(ids[i])
 		}
 		req.ReturnBlockBlob = types.Boolean(returnBlock)
 		req.ReturnReceiptBlob = types.Boolean(returnReceipt)
@@ -485,7 +488,7 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 		return result.Value.(*types.GetBlocksByIDResponse).BlockItems
 	}
 
-	testCases := [][]int64{
+	testCases := [][]uint64{
 		{}, {101, 102, 103}, {108, 109, 110}, {206, 104, 307, 111},
 		{990}, {990, 991}, {990, 108, 991, 992, 104},
 	}
@@ -534,13 +537,13 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 
 		for j := 0; j < len(testCases[i]); j++ {
 			if testCases[i][j] < 900 {
-				expectedBlockID := GetBlockID(testCases[i][j])
+				expectedBlockID := getID(testCases[i][j])
 				if !result[j].BlockID.Equals(&expectedBlockID) {
 					fmt.Printf("%d %d %v %v\n", i, j, expectedBlockID, result[j].BlockID)
 					t.Error("Unexpected block ID")
 					return
 				}
-				if int64(result[j].BlockHeight) != testCases[i][j]%100 {
+				if uint64(result[j].BlockHeight) != testCases[i][j]%100 {
 					t.Error("Unexpected block height")
 				}
 				checkLengths(&result[j])

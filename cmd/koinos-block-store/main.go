@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path"
+	"runtime"
 	"syscall"
 
 	"github.com/dgraph-io/badger"
@@ -18,19 +20,34 @@ const (
 	blockstoreRPC     string = "block_store"
 	blockAccept       string = "koinos.block.accept"
 	blockIrreversible string = "koinos.block.irreversible"
+	appName           string = "block_store"
+	baseName          string = ".koinos"
 )
 
 func main() {
-	var dFlag = flag.StringP("data", "d", "./db", "the database directory")
-	var amqpFlag = flag.StringP("amqp", "a", "amqp://guest:guest@localhost:5672/", "AMQP server URL")
+	var baseDir = flag.StringP("basedir", "b", getKoinosDir(), "the base directory")
+	var amqp = flag.StringP("amqp", "a", "amqp://guest:guest@localhost:5672/", "AMQP server URL")
+	var reset = flag.BoolP("reset", "r", false, "reset the database")
 
 	flag.Parse()
 
-	var opts = badger.DefaultOptions(*dFlag)
+	// Costruct the db directory and ensure it exists
+	dbDir := path.Join(getAppDir((*baseDir), appName), "db")
+	ensureDir(dbDir)
+	log.Printf("Opening database at %s", dbDir)
+
+	var opts = badger.DefaultOptions(dbDir)
 	var backend = bstore.NewBadgerBackend(opts)
+
+	// Reset backend if requested
+	if *reset {
+		log.Println("Resetting database")
+		backend.Reset()
+	}
+
 	defer backend.Close()
 
-	mq := koinosmq.NewKoinosMQ(*amqpFlag)
+	mq := koinosmq.NewKoinosMQ(*amqp)
 
 	handler := bstore.RequestHandler{Backend: backend}
 
@@ -96,4 +113,31 @@ func main() {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	<-ch
 	log.Println("Shutting down node...")
+}
+
+func getHomeDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic("There was a problem finding the user's home directory")
+	}
+
+	if runtime.GOOS == "windows" {
+		home = path.Join(home, "AppData")
+	}
+
+	return home
+}
+
+func getKoinosDir() string {
+	return path.Join(getHomeDir(), baseName)
+}
+
+func getAppDir(baseDir string, appName string) string {
+	return path.Join(baseDir, appName)
+}
+
+func ensureDir(dir string) {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, os.ModePerm)
+	}
 }

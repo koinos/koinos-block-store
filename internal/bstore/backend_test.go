@@ -44,6 +44,34 @@ func TestBadgerBackendBasic(t *testing.T) {
 	if e == nil {
 		t.Error("expected error empty key")
 	}
+
+	// Test reset
+
+	// First put new value into database
+	b.Put([]byte("test_reset"), []byte("val"))
+	v, e = b.Get([]byte("test_reset"))
+	if e != nil {
+		t.Errorf("error: %s", e)
+	}
+	if !bytes.Equal(v, []byte("val")) {
+		t.Errorf("error: slice not equivalent")
+	}
+
+	// Reset the database
+	err := b.Reset()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Ensure the value is gone
+	v, e = b.Get([]byte("test_reset"))
+	if e != nil {
+		t.Error(e)
+	}
+	if len(v) != 0 {
+		t.Errorf("expected empty slice")
+	}
+
 	CloseBackend(b)
 }
 
@@ -85,5 +113,32 @@ func TestMapBackendBasic(t *testing.T) {
 	v, e = b.Get(nil)
 	if e == nil {
 		t.Error("expected error empty key")
+	}
+
+	// Test reset
+
+	// First put new value into database
+	b.Put([]byte("test_reset"), []byte("val"))
+	v, e = b.Get([]byte("test_reset"))
+	if e != nil {
+		t.Errorf("error: %s", e)
+	}
+	if !bytes.Equal(v, []byte("val")) {
+		t.Errorf("error: slice not equivalent")
+	}
+
+	// Reset the database
+	err := b.Reset()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Ensure the value is gone
+	v, e = b.Get([]byte("test_reset"))
+	if e != nil {
+		t.Error(e)
+	}
+	if len(v) != 0 {
+		t.Errorf("expected empty slice")
 	}
 }

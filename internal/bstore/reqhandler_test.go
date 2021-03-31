@@ -593,6 +593,10 @@ func GetGetTransactionsByIDReq(start uint64, num uint64) types.GetTransactionsBy
 type TxnErrorBackend struct {
 }
 
+func (backend *TxnErrorBackend) Reset() error {
+	return nil
+}
+
 // Put returns an error
 func (backend *TxnErrorBackend) Put(key []byte, value []byte) error {
 	return errors.New("Error on put")
@@ -606,6 +610,10 @@ func (backend *TxnErrorBackend) Get(key []byte) ([]byte, error) {
 type TxnBadBackend struct {
 }
 
+func (backend *TxnBadBackend) Reset() error {
+	return nil
+}
+
 // Put returns an error
 func (backend *TxnBadBackend) Put(key []byte, value []byte) error {
 	return nil
@@ -617,6 +625,10 @@ func (backend *TxnBadBackend) Get(key []byte) ([]byte, error) {
 }
 
 type TxnLongBackend struct {
+}
+
+func (backend *TxnLongBackend) Reset() error {
+	return nil
 }
 
 // Put returns an error

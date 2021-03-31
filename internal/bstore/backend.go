@@ -13,4 +13,7 @@ type BlockStoreBackend interface {
 	 * If the key is not found, returns (nil, nil).
 	 */
 	Get(key []byte) ([]byte, error)
+
+	// Resets the entire database
+	Reset() error
 }

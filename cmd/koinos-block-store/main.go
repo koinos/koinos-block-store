@@ -51,6 +51,15 @@ func main() {
 
 	handler := bstore.RequestHandler{Backend: backend}
 
+	_, err := handler.GetHighestBlock(types.NewGetHighestBlockRequest())
+	if err != nil {
+		if _, ok := err.(*bstore.UnexpectedHeightError); ok {
+			handler.UpdateHighestBlock(&types.BlockTopology{
+				Height: 0,
+			})
+		}
+	}
+
 	mq.SetRPCHandler(blockstoreRPC, func(rpcType string, data []byte) ([]byte, error) {
 		req := types.NewBlockStoreRequest()
 		err := json.Unmarshal(data, req)

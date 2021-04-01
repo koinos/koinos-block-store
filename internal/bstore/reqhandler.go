@@ -101,11 +101,8 @@ func (e *BlockHeightMismatch) Error() string {
 	return "Block height mismatch"
 }
 
-func (handler *RequestHandler) handleReservedReq(req *types.BlockStoreReservedRequest) (*types.BlockStoreReservedResponse, error) {
-	return nil, &ReservedReqError{}
-}
-
-func (handler *RequestHandler) handleGetBlocksByIDReq(req *types.GetBlocksByIDRequest) (*types.GetBlocksByIDResponse, error) {
+// GetBlocksByID returns blocks by block ID
+func (handler *RequestHandler) GetBlocksByID(req *types.GetBlocksByIDRequest) (*types.GetBlocksByIDResponse, error) {
 	result := types.NewGetBlocksByIDResponse()
 	emptyVb := types.NewVariableBlob()
 
@@ -226,7 +223,8 @@ func (handler *RequestHandler) fillBlocks(
 	return blockItems, nil
 }
 
-func (handler *RequestHandler) handleGetBlocksByHeightReq(req *types.GetBlocksByHeightRequest) (*types.GetBlocksByHeightResponse, error) {
+// GetBlocksByHeight retuns blocks by block height
+func (handler *RequestHandler) GetBlocksByHeight(req *types.GetBlocksByHeightRequest) (*types.GetBlocksByHeightResponse, error) {
 
 	resp := types.NewGetBlocksByHeightResponse()
 
@@ -423,7 +421,8 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 	}
 }
 
-func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockRequest) (*types.AddBlockResponse, error) {
+// AddBlock adds a block to the block store
+func (handler *RequestHandler) AddBlock(req *types.AddBlockRequest) (*types.AddBlockResponse, error) {
 
 	req.BlockToAdd.Block.Unbox()
 	block, err := req.BlockToAdd.Block.GetNative()
@@ -473,7 +472,8 @@ func (handler *RequestHandler) handleAddBlockReq(req *types.AddBlockRequest) (*t
 	return &resp, nil
 }
 
-func (handler *RequestHandler) handleAddTransactionReq(req *types.AddTransactionRequest) (*types.AddTransactionResponse, error) {
+// AddTransaction adds a transaction to the block store
+func (handler *RequestHandler) AddTransaction(req *types.AddTransactionRequest) (*types.AddTransactionResponse, error) {
 	record := types.TransactionRecord{}
 	record.Transaction = req.Transaction
 
@@ -489,7 +489,8 @@ func (handler *RequestHandler) handleAddTransactionReq(req *types.AddTransaction
 	return &resp, nil
 }
 
-func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransactionsByIDRequest) (*types.GetTransactionsByIDResponse, error) {
+// GetTransactionsByID returns transactions by transaction ID
+func (handler *RequestHandler) GetTransactionsByID(req *types.GetTransactionsByIDRequest) (*types.GetTransactionsByIDResponse, error) {
 	resp := types.GetTransactionsByIDResponse{}
 	resp.TransactionItems = types.VectorTransactionItem(make([]types.TransactionItem, 0))
 
@@ -521,7 +522,8 @@ func (handler *RequestHandler) handleGetTransactionsByIDReq(req *types.GetTransa
 	return &resp, nil
 }
 
-func (handler *RequestHandler) handleGetHighestBlockReq(req *types.GetHighestBlockRequest) (*types.GetHighestBlockResponse, error) {
+// GetHighestBlock returns the highest block seen by the block store
+func (handler *RequestHandler) GetHighestBlock(req *types.GetHighestBlockRequest) (*types.GetHighestBlockResponse, error) {
 	recordBytes, err := handler.Backend.Get(types.VariableBlob{highestBlockKey})
 
 	if err != nil {
@@ -571,50 +573,46 @@ func (handler *RequestHandler) HandleRequest(req *types.BlockStoreRequest) *type
 	var err error
 	switch v := req.Value.(type) {
 	case *types.BlockStoreReservedRequest:
-		var result *types.BlockStoreReservedResponse
-		result, err = handler.handleReservedReq(v)
-		if err == nil {
-			response.Value = result
-		}
+		err = &ReservedReqError{}
 		break
 	case *types.GetBlocksByIDRequest:
 		var result *types.GetBlocksByIDResponse
-		result, err = handler.handleGetBlocksByIDReq(v)
+		result, err = handler.GetBlocksByID(v)
 		if err == nil {
 			response.Value = result
 		}
 		break
 	case *types.GetBlocksByHeightRequest:
 		var result *types.GetBlocksByHeightResponse
-		result, err = handler.handleGetBlocksByHeightReq(v)
+		result, err = handler.GetBlocksByHeight(v)
 		if err == nil {
 			response.Value = result
 		}
 		break
 	case *types.AddBlockRequest:
 		var result *types.AddBlockResponse
-		result, err = handler.handleAddBlockReq(v)
+		result, err = handler.AddBlock(v)
 		if err == nil {
 			response.Value = result
 		}
 		break
 	case *types.AddTransactionRequest:
 		var result *types.AddTransactionResponse
-		result, err = handler.handleAddTransactionReq(v)
+		result, err = handler.AddTransaction(v)
 		if err == nil {
 			response.Value = result
 		}
 		break
 	case *types.GetTransactionsByIDRequest:
 		var result *types.GetTransactionsByIDResponse
-		result, err = handler.handleGetTransactionsByIDReq(v)
+		result, err = handler.GetTransactionsByID(v)
 		if err == nil {
 			response.Value = result
 		}
 		break
 	case *types.GetHighestBlockRequest:
 		var result *types.GetHighestBlockResponse
-		result, err = handler.handleGetHighestBlockReq(v)
+		result, err = handler.GetHighestBlock(v)
 		if err == nil {
 			response.Value = result
 		}

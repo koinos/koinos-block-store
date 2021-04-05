@@ -8,4 +8,4 @@ RUN go get ./... && \
 
 FROM alpine:latest
 COPY --from=builder /koinos-block-store/koinos_block_store /usr/local/bin
-CMD  /usr/local/bin/koinos_block_store
+ENTRYPOINT [ "/usr/local/bin/koinos_block_store" ]

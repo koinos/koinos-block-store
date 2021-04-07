@@ -47,7 +47,7 @@ func main() {
 
 	defer backend.Close()
 
-	mq := koinosmq.NewKoinosMQ(*amqp)
+	requestHandler := koinosmq.NewRequestHandler(*amqp)
 
 	handler := bstore.RequestHandler{Backend: backend}
 
@@ -60,7 +60,7 @@ func main() {
 		}
 	}
 
-	mq.SetRPCHandler(blockstoreRPC, func(rpcType string, data []byte) ([]byte, error) {
+	requestHandler.SetRPCHandler(blockstoreRPC, func(rpcType string, data []byte) ([]byte, error) {
 		req := types.NewBlockStoreRequest()
 		err := json.Unmarshal(data, req)
 		if err != nil {
@@ -79,7 +79,7 @@ func main() {
 		return outputBytes, err
 	})
 
-	mq.SetBroadcastHandler(blockAccept, func(topic string, data []byte) {
+	requestHandler.SetBroadcastHandler(blockAccept, func(topic string, data []byte) {
 		sub := types.NewBlockAccepted()
 		err := json.Unmarshal(data, sub)
 		if err != nil {
@@ -115,7 +115,7 @@ func main() {
 		}
 	})
 
-	mq.Start()
+	requestHandler.Start()
 
 	// Wait for a SIGINT or SIGTERM signal
 	ch := make(chan os.Signal, 1)

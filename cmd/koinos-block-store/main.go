@@ -42,7 +42,11 @@ func main() {
 	// Reset backend if requested
 	if *reset {
 		log.Println("Resetting database")
-		backend.Reset()
+		err := backend.Reset()
+		if err != nil {
+			log.Printf("Error resetting database: %s\n", err.Error())
+			return
+		}
 	}
 
 	defer backend.Close()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -44,8 +45,7 @@ func main() {
 		log.Println("Resetting database")
 		err := backend.Reset()
 		if err != nil {
-			log.Printf("Error resetting database: %s\n", err.Error())
-			return
+			panic(fmt.Sprintf("Error resetting database: %s\n", err.Error()))
 		}
 	}
 

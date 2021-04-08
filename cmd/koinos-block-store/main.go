@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -42,7 +43,10 @@ func main() {
 	// Reset backend if requested
 	if *reset {
 		log.Println("Resetting database")
-		backend.Reset()
+		err := backend.Reset()
+		if err != nil {
+			panic(fmt.Sprintf("Error resetting database: %s\n", err.Error()))
+		}
 	}
 
 	defer backend.Close()

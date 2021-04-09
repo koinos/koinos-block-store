@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"runtime"
 	"syscall"
 
@@ -15,6 +17,17 @@ import (
 	koinosmq "github.com/koinos/koinos-mq-golang"
 	types "github.com/koinos/koinos-types-golang"
 	flag "github.com/spf13/pflag"
+	"gopkg.in/yaml.v2"
+)
+
+const (
+	basedirOption = "basedir"
+	amqpOption    = "amqp"
+)
+
+const (
+	basedirDefault = ".koinos"
+	amqpDefault    = "amqp://guest.guest@localhost:5672/"
 )
 
 const (
@@ -22,15 +35,46 @@ const (
 	blockAccept       string = "koinos.block.accept"
 	blockIrreversible string = "koinos.block.irreversible"
 	appName           string = "block_store"
-	baseName          string = ".koinos"
 )
 
 func main() {
-	var baseDir = flag.StringP("basedir", "b", getKoinosDir(), "the base directory")
-	var amqp = flag.StringP("amqp", "a", "amqp://guest:guest@localhost:5672/", "AMQP server URL")
+	var baseDir = flag.StringP(basedirOption, "d", basedirDefault, "the base directory")
+	var amqp = flag.StringP(amqpOption, "a", "", "AMQP server URL")
 	var reset = flag.BoolP("reset", "r", false, "reset the database")
 
 	flag.Parse()
+
+	if !filepath.IsAbs(*baseDir) {
+		homedir, err := os.UserHomeDir()
+		if err != nil {
+			panic(err)
+		}
+		*baseDir = filepath.Join(homedir, *baseDir)
+	}
+	ensureDir(*baseDir)
+
+	yamlConfigPath := filepath.Join(*baseDir, "config.yml")
+	if _, err := os.Stat(yamlConfigPath); os.IsNotExist(err) {
+		yamlConfigPath = filepath.Join(*baseDir, "config.yaml")
+	}
+
+	yamlConfig := yamlConfig{}
+	if _, err := os.Stat(yamlConfigPath); err == nil {
+		data, err := ioutil.ReadFile(yamlConfigPath)
+		if err != nil {
+			panic(err)
+		}
+
+		err = yaml.Unmarshal(data, &yamlConfig)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		yamlConfig.Global = make(map[string]interface{})
+		yamlConfig.BlockStore = make(map[string]interface{})
+	}
+
+	*amqp = getStringOption(amqpOption, amqpDefault, *amqp, yamlConfig.BlockStore, yamlConfig.Global)
 
 	// Costruct the db directory and ensure it exists
 	dbDir := path.Join(getAppDir((*baseDir), appName), "db")
@@ -141,8 +185,25 @@ func getHomeDir() string {
 	return home
 }
 
-func getKoinosDir() string {
-	return path.Join(getHomeDir(), baseName)
+type yamlConfig struct {
+	Global     map[string]interface{} `yaml:"global,omitempty"`
+	BlockStore map[string]interface{} `yaml:"block-store,omitempty"`
+}
+
+func getStringOption(key string, defaultValue string, cliArg string, configs ...map[string]interface{}) string {
+	if cliArg != "" {
+		return cliArg
+	}
+
+	for _, config := range configs {
+		if v, ok := config[key]; ok {
+			if option, ok := v.(string); ok {
+				return option
+			}
+		}
+	}
+
+	return defaultValue
 }
 
 func getAppDir(baseDir string, appName string) string {

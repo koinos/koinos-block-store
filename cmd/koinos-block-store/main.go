@@ -37,25 +37,10 @@ const (
 	appName           string = "block_store"
 )
 
-func main() {
-	var baseDir = flag.StringP(basedirOption, "d", basedirDefault, "the base directory")
-	var amqp = flag.StringP(amqpOption, "a", "", "AMQP server URL")
-	var reset = flag.BoolP("reset", "r", false, "reset the database")
-
-	flag.Parse()
-
-	if !filepath.IsAbs(*baseDir) {
-		homedir, err := os.UserHomeDir()
-		if err != nil {
-			panic(err)
-		}
-		*baseDir = filepath.Join(homedir, *baseDir)
-	}
-	ensureDir(*baseDir)
-
-	yamlConfigPath := filepath.Join(*baseDir, "config.yml")
+func initYamlConfig(baseDir string) *yamlConfig {
+	yamlConfigPath := filepath.Join(baseDir, "config.yml")
 	if _, err := os.Stat(yamlConfigPath); os.IsNotExist(err) {
-		yamlConfigPath = filepath.Join(*baseDir, "config.yaml")
+		yamlConfigPath = filepath.Join(baseDir, "config.yaml")
 	}
 
 	yamlConfig := yamlConfig{}
@@ -73,6 +58,20 @@ func main() {
 		yamlConfig.Global = make(map[string]interface{})
 		yamlConfig.BlockStore = make(map[string]interface{})
 	}
+
+	return &yamlConfig
+}
+
+func main() {
+	var baseDir = flag.StringP(basedirOption, "d", basedirDefault, "the base directory")
+	var amqp = flag.StringP(amqpOption, "a", "", "AMQP server URL")
+	var reset = flag.BoolP("reset", "r", false, "reset the database")
+
+	flag.Parse()
+
+	*baseDir = initBaseDir(*baseDir)
+
+	yamlConfig := initYamlConfig(*baseDir)
 
 	*amqp = getStringOption(amqpOption, amqpDefault, *amqp, yamlConfig.BlockStore, yamlConfig.Global)
 
@@ -208,6 +207,19 @@ func getStringOption(key string, defaultValue string, cliArg string, configs ...
 
 func getAppDir(baseDir string, appName string) string {
 	return path.Join(baseDir, appName)
+}
+
+func initBaseDir(baseDir string) string {
+	if !filepath.IsAbs(baseDir) {
+		homedir, err := os.UserHomeDir()
+		if err != nil {
+			panic(err)
+		}
+		baseDir = filepath.Join(homedir, baseDir)
+	}
+	ensureDir(baseDir)
+
+	return baseDir
 }
 
 func ensureDir(dir string) {

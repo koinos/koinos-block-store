@@ -3,21 +3,18 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
 	"path"
-	"path/filepath"
-	"runtime"
 	"syscall"
 
 	"github.com/dgraph-io/badger"
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	koinosmq "github.com/koinos/koinos-mq-golang"
 	types "github.com/koinos/koinos-types-golang"
+	util "github.com/koinos/koinos-util-golang"
 	flag "github.com/spf13/pflag"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -37,31 +34,6 @@ const (
 	appName           string = "block_store"
 )
 
-func initYamlConfig(baseDir string) *yamlConfig {
-	yamlConfigPath := filepath.Join(baseDir, "config.yml")
-	if _, err := os.Stat(yamlConfigPath); os.IsNotExist(err) {
-		yamlConfigPath = filepath.Join(baseDir, "config.yaml")
-	}
-
-	yamlConfig := yamlConfig{}
-	if _, err := os.Stat(yamlConfigPath); err == nil {
-		data, err := ioutil.ReadFile(yamlConfigPath)
-		if err != nil {
-			panic(err)
-		}
-
-		err = yaml.Unmarshal(data, &yamlConfig)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		yamlConfig.Global = make(map[string]interface{})
-		yamlConfig.BlockStore = make(map[string]interface{})
-	}
-
-	return &yamlConfig
-}
-
 func main() {
 	var baseDir = flag.StringP(basedirOption, "d", basedirDefault, "the base directory")
 	var amqp = flag.StringP(amqpOption, "a", "", "AMQP server URL")
@@ -69,15 +41,15 @@ func main() {
 
 	flag.Parse()
 
-	*baseDir = initBaseDir(*baseDir)
+	*baseDir = util.InitBaseDir(*baseDir)
 
-	yamlConfig := initYamlConfig(*baseDir)
+	yamlConfig := util.InitYamlConfig(*baseDir)
 
-	*amqp = getStringOption(amqpOption, amqpDefault, *amqp, yamlConfig.BlockStore, yamlConfig.Global)
+	*amqp = util.GetStringOption(amqpOption, amqpDefault, *amqp, yamlConfig.BlockStore, yamlConfig.Global)
 
 	// Costruct the db directory and ensure it exists
-	dbDir := path.Join(getAppDir((*baseDir), appName), "db")
-	ensureDir(dbDir)
+	dbDir := path.Join(util.GetAppDir((*baseDir), appName), "db")
+	util.EnsureDir(dbDir)
 	log.Printf("Opening database at %s", dbDir)
 
 	var opts = badger.DefaultOptions(dbDir)
@@ -169,61 +141,4 @@ func main() {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	<-ch
 	log.Println("Shutting down node...")
-}
-
-func getHomeDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic("There was a problem finding the user's home directory")
-	}
-
-	if runtime.GOOS == "windows" {
-		home = path.Join(home, "AppData")
-	}
-
-	return home
-}
-
-type yamlConfig struct {
-	Global     map[string]interface{} `yaml:"global,omitempty"`
-	BlockStore map[string]interface{} `yaml:"block-store,omitempty"`
-}
-
-func getStringOption(key string, defaultValue string, cliArg string, configs ...map[string]interface{}) string {
-	if cliArg != "" {
-		return cliArg
-	}
-
-	for _, config := range configs {
-		if v, ok := config[key]; ok {
-			if option, ok := v.(string); ok {
-				return option
-			}
-		}
-	}
-
-	return defaultValue
-}
-
-func getAppDir(baseDir string, appName string) string {
-	return path.Join(baseDir, appName)
-}
-
-func initBaseDir(baseDir string) string {
-	if !filepath.IsAbs(baseDir) {
-		homedir, err := os.UserHomeDir()
-		if err != nil {
-			panic(err)
-		}
-		baseDir = filepath.Join(homedir, baseDir)
-	}
-	ensureDir(baseDir)
-
-	return baseDir
-}
-
-func ensureDir(dir string) {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, os.ModePerm)
-	}
 }

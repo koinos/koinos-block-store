@@ -69,7 +69,7 @@ func (kbl KoinosBadgerLogger) Errorf(msg string, args ...interface{}) {
 	zap.S().Errorf(strings.TrimSpace(msg), args...)
 }
 
-// Warnf implements formatted warning message handling for badger
+// Warningf implements formatted warning message handling for badger
 func (kbl KoinosBadgerLogger) Warningf(msg string, args ...interface{}) {
 	zap.S().Warnf(strings.TrimSpace(msg), args...)
 }

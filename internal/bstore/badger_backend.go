@@ -60,21 +60,26 @@ func (backend *BadgerBackend) Get(key []byte) ([]byte, error) {
 	return value, err
 }
 
+// KoinosBadgerLogger implements the badger.Logger interface in roder to pass badger logs the the koinos logger
 type KoinosBadgerLogger struct {
 }
 
+// Errorf implements formatted error message handling for badger
 func (kbl KoinosBadgerLogger) Errorf(msg string, args ...interface{}) {
 	zap.S().Errorf(strings.TrimSpace(msg), args...)
 }
 
+// Warnf implements formatted warning message handling for badger
 func (kbl KoinosBadgerLogger) Warningf(msg string, args ...interface{}) {
 	zap.S().Warnf(strings.TrimSpace(msg), args...)
 }
 
+// Infof implements formatted info message handling for badger
 func (kbl KoinosBadgerLogger) Infof(msg string, args ...interface{}) {
 	zap.S().Infof(strings.TrimSpace(msg), args...)
 }
 
+// Debugf implements formatted debug message handling for badger
 func (kbl KoinosBadgerLogger) Debugf(msg string, args ...interface{}) {
 	zap.S().Debugf(strings.TrimSpace(msg), args...)
 }

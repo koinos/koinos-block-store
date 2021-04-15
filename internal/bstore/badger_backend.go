@@ -2,8 +2,10 @@ package bstore
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/dgraph-io/badger"
+	"go.uber.org/zap"
 )
 
 // BadgerBackend Badger backend implementation
@@ -56,4 +58,23 @@ func (backend *BadgerBackend) Get(key []byte) ([]byte, error) {
 	})
 
 	return value, err
+}
+
+type KoinosBadgerLogger struct {
+}
+
+func (kbl KoinosBadgerLogger) Errorf(msg string, args ...interface{}) {
+	zap.S().Errorf(strings.TrimSpace(msg), args...)
+}
+
+func (kbl KoinosBadgerLogger) Warningf(msg string, args ...interface{}) {
+	zap.S().Warnf(strings.TrimSpace(msg), args...)
+}
+
+func (kbl KoinosBadgerLogger) Infof(msg string, args ...interface{}) {
+	zap.S().Infof(strings.TrimSpace(msg), args...)
+}
+
+func (kbl KoinosBadgerLogger) Debugf(msg string, args ...interface{}) {
+	zap.S().Debugf(strings.TrimSpace(msg), args...)
 }

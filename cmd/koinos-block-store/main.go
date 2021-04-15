@@ -53,11 +53,8 @@ func main() {
 	yamlConfig := util.InitYamlConfig(*baseDir)
 
 	*amqp = util.GetStringOption(amqpOption, amqpDefault, *amqp, yamlConfig.BlockStore, yamlConfig.Global)
-
-	// Generate Instance ID
-	if *instanceID == "" {
-		*instanceID = util.GenerateBase58ID(5)
-	}
+	*logLevel = util.GetStringOption(logLevelOption, logLevelDefault, *logLevel, yamlConfig.P2P, yamlConfig.Global)
+	*instanceID = util.GetStringOption(instanceIDOption, util.GenerateBase58ID(5), *instanceID, yamlConfig.P2P, yamlConfig.Global)
 
 	appID := fmt.Sprintf("%s.%s", appName, *instanceID)
 
@@ -74,6 +71,7 @@ func main() {
 	log.Infof("Opening database at %s", dbDir)
 
 	var opts = badger.DefaultOptions(dbDir)
+	opts.Logger = bstore.KoinosBadgerLogger{}
 	var backend = bstore.NewBadgerBackend(opts)
 
 	// Reset backend if requested

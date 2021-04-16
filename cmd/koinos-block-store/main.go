@@ -59,7 +59,7 @@ func main() {
 	appID := fmt.Sprintf("%s.%s", appName, *instanceID)
 
 	// Initialize logger
-	logFilename := path.Join(util.GetAppDir(*baseDir, appName), logDir, "p2p.log")
+	logFilename := path.Join(util.GetAppDir(*baseDir, appName), logDir, "block_store.log")
 	err := log.InitLogger(*logLevel, false, logFilename, appID)
 	if err != nil {
 		panic(fmt.Sprintf("Invalid log-level: %s. Please choose one of: debug, info, warn, error", *logLevel))

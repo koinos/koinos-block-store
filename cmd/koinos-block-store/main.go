@@ -53,8 +53,8 @@ func main() {
 	yamlConfig := util.InitYamlConfig(*baseDir)
 
 	*amqp = util.GetStringOption(amqpOption, amqpDefault, *amqp, yamlConfig.BlockStore, yamlConfig.Global)
-	*logLevel = util.GetStringOption(logLevelOption, logLevelDefault, *logLevel, yamlConfig.P2P, yamlConfig.Global)
-	*instanceID = util.GetStringOption(instanceIDOption, util.GenerateBase58ID(5), *instanceID, yamlConfig.P2P, yamlConfig.Global)
+	*logLevel = util.GetStringOption(logLevelOption, logLevelDefault, *logLevel, yamlConfig.BlockStore, yamlConfig.Global)
+	*instanceID = util.GetStringOption(instanceIDOption, util.GenerateBase58ID(5), *instanceID, yamlConfig.BlockStore, yamlConfig.Global)
 
 	appID := fmt.Sprintf("%s.%s", appName, *instanceID)
 

@@ -4,10 +4,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 	"math/bits"
 
 	base58 "github.com/btcsuite/btcutil/base58"
+	log "github.com/koinos/koinos-log-golang"
 	types "github.com/koinos/koinos-types-golang"
 )
 
@@ -184,8 +184,8 @@ func (handler *RequestHandler) fillBlocks(
 
 		consumed, record, err := types.DeserializeBlockRecord(&vbValue)
 		if err != nil {
-			log.Println("Couldn't deserialize block record")
-			log.Println("vb: ", recordBytes)
+			log.Warn("Couldn't deserialize block record")
+			log.Warnf("vb: %v", recordBytes)
 			return nil, err
 		}
 		if consumed != uint64(len(recordBytes)) {
@@ -196,8 +196,8 @@ func (handler *RequestHandler) fillBlocks(
 		if i > 0 {
 			expectedHeight := blockItems[k+1].BlockHeight - 1
 			if record.BlockHeight != expectedHeight {
-				log.Println("record height:", record.BlockHeight)
-				log.Println("expect height:", expectedHeight)
+				log.Warnf("record height: %d", record.BlockHeight)
+				log.Warnf("expect height: %d", expectedHeight)
 				return nil, &UnexpectedHeightError{}
 			}
 		}
@@ -268,8 +268,8 @@ func (handler *RequestHandler) GetBlocksByHeight(req *types.GetBlocksByHeightReq
 	if len(resp.BlockItems) > 0 {
 		expectedHeight := req.AncestorStartHeight
 		if resp.BlockItems[0].BlockHeight != expectedHeight {
-			log.Println("start  height:", resp.BlockItems[0].BlockHeight)
-			log.Println("expect height:", expectedHeight)
+			log.Warnf("start  height: %d", resp.BlockItems[0].BlockHeight)
+			log.Warnf("expect height: %d", expectedHeight)
 			return nil, &UnexpectedHeightError{}
 		}
 	}
@@ -357,8 +357,8 @@ func getBlockHeight(backend BlockStoreBackend, blockID *types.Multihash) (types.
 
 	consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))
 	if err != nil {
-		log.Println("Couldn't deserialize block record")
-		log.Println("vb: ", recordBytes)
+		log.Warn("Couldn't deserialize block record")
+		log.Warnf("vb: %v", recordBytes)
 		return 0, err
 	}
 	if consumed != uint64(len(recordBytes)) {
@@ -386,16 +386,16 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 
 		consumed, record, err := types.DeserializeBlockRecord((*types.VariableBlob)(&recordBytes))
 		if err != nil {
-			log.Println("Couldn't deserialize block record")
-			log.Println("vb: ", recordBytes)
+			log.Warn("Couldn't deserialize block record")
+			log.Warnf("vb: %v", recordBytes)
 			return nil, err
 		}
 		if consumed != uint64(len(recordBytes)) {
 			return nil, &DeserializeError{}
 		}
 		if hasExpectedHeight && (record.BlockHeight != expectedHeight) {
-			log.Println("record height:", record.BlockHeight)
-			log.Println("expect height:", expectedHeight)
+			log.Warnf("record height: %d", record.BlockHeight)
+			log.Warnf("expect height: %d", expectedHeight)
 			return nil, &UnexpectedHeightError{}
 		}
 
@@ -502,15 +502,15 @@ func (handler *RequestHandler) GetTransactionsByID(req *types.GetTransactionsByI
 			return nil, err
 		}
 		if len(recordBytes) == 0 {
-			log.Println("Transaction not present, key is", hex.EncodeToString(tid.Digest))
+			log.Warnf("Transaction not present, key is %v", hex.EncodeToString(tid.Digest))
 			return nil, &TransactionNotPresent{}
 		}
 
 		vbValue := types.VariableBlob(recordBytes)
 		consumed, record, err := types.DeserializeTransactionRecord(&vbValue)
 		if err != nil {
-			log.Println("Couldn't deserialize transaction record")
-			log.Println("vb: ", recordBytes)
+			log.Warn("Couldn't deserialize transaction record")
+			log.Warnf("vb: %v", recordBytes)
 			return nil, err
 		}
 		if consumed != uint64(len(recordBytes)) {
@@ -537,7 +537,7 @@ func (handler *RequestHandler) GetHighestBlock(req *types.GetHighestBlockRequest
 	valueBlob := types.VariableBlob(recordBytes)
 	_, value, err := types.DeserializeBlockTopology(&valueBlob)
 	if err != nil {
-		log.Println("Could not deserialize block topology")
+		log.Warn("Could not deserialize block topology")
 	}
 
 	response := types.NewGetHighestBlockResponse()
@@ -552,7 +552,7 @@ func (handler *RequestHandler) UpdateHighestBlock(topology *types.BlockTopology)
 		valueBlob := types.VariableBlob(recordBytes)
 		_, currentValue, err := types.DeserializeBlockTopology(&valueBlob)
 		if err != nil {
-			log.Println("Could not deserialize highest block")
+			log.Warn("Could not deserialize highest block")
 			return errors.New("Current highest block corrupted")
 		}
 

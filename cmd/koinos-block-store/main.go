@@ -27,7 +27,7 @@ const (
 
 const (
 	basedirDefault = ".koinos"
-	amqpDefault    = "amqp://guest.guest@localhost:5672/"
+	amqpDefault    = "amqp://guest:guest@localhost:5672/"
 )
 
 const (

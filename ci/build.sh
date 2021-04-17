@@ -8,5 +8,10 @@ if [[ -z $BUILD_DOCKER ]]; then
    mkdir -p build
    go build -o build/koinos_block_store cmd/koinos-block-store/main.go
 else
-   docker build . -t koinos-block-store
+   TAG="$TRAVIS_BRANCH"
+   if [ "$TAG" = "master" ]; then
+      TAG="latest"
+   fi
+
+   docker build . -t koinos/koinos-block-store:$TAG
 fi

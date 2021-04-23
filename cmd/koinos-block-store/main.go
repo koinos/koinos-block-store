@@ -121,7 +121,7 @@ func main() {
 		sub := types.NewBlockAccepted()
 		err := json.Unmarshal(data, sub)
 		if err != nil {
-			log.Warn("Unable to parse koinos.block.accept broadcast")
+			log.Warnf("Unable to parse koinos.block.accept broadcast: %s", string(data))
 			return
 		}
 

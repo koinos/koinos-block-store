@@ -100,16 +100,16 @@ func main() {
 
 	requestHandler.SetRPCHandler(blockstoreRPC, func(rpcType string, data []byte) ([]byte, error) {
 		req := types.NewBlockStoreRequest()
+		resp := types.NewBlockStoreResponse()
+
 		err := json.Unmarshal(data, req)
 		if err != nil {
-			return nil, err
+			log.Warnf("Received malformed request: %s", string(data))
+			resp.Value = &types.BlockStoreErrorResponse{ErrorText: types.String(err.Error())}
+		} else {
+			log.Debugf("Received RPC request: %s", string(data))
+			resp = handler.HandleRequest(req)
 		}
-
-		log.Info("Received RPC request")
-		log.Infof(" - Request: %s", string(data))
-
-		var resp = types.NewBlockStoreResponse()
-		resp = handler.HandleRequest(req)
 
 		var outputBytes []byte
 		outputBytes, err = json.Marshal(&resp)
@@ -121,7 +121,7 @@ func main() {
 		sub := types.NewBlockAccepted()
 		err := json.Unmarshal(data, sub)
 		if err != nil {
-			log.Warn("Unable to parse BlockAccepted broadcast")
+			log.Warn("Unable to parse koinos.block.accept broadcast")
 			return
 		}
 

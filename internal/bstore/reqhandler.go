@@ -438,6 +438,7 @@ func (handler *RequestHandler) AddBlock(req *types.AddBlockRequest) (*types.AddB
 	record.Block = *block
 	// TODO: Internally, Block Receipt needs to change
 	// record.BlockReceipt = req.BlockToAdd.BlockReceipt
+	record.BlockReceipt = *types.NewOpaqueBlockReceipt()
 
 	if block.Header.Height > 1 {
 		previousHeights := getPreviousHeights(uint64(block.Header.Height))

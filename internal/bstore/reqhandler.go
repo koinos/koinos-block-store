@@ -104,7 +104,6 @@ func (e *BlockHeightMismatch) Error() string {
 // GetBlocksByID returns blocks by block ID
 func (handler *RequestHandler) GetBlocksByID(req *types.GetBlocksByIDRequest) (*types.GetBlocksByIDResponse, error) {
 	result := types.NewGetBlocksByIDResponse()
-	emptyVb := types.NewVariableBlob()
 
 	result.BlockItems = make(types.VectorBlockItem, len(req.BlockID))
 
@@ -112,8 +111,8 @@ func (handler *RequestHandler) GetBlocksByID(req *types.GetBlocksByIDRequest) (*
 		vbKey := req.BlockID[i].Serialize(types.NewVariableBlob())
 		bytes, err := handler.Backend.Get([]byte(*vbKey))
 
-		result.BlockItems[i].Block = *types.NewOpaqueBlockFromBlob(emptyVb)
-		result.BlockItems[i].BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(emptyVb)
+		result.BlockItems[i].Block = *types.NewOptionalBlock()
+		result.BlockItems[i].BlockReceipt = *types.NewOptionalBlockReceipt()
 
 		if err != nil {
 			continue
@@ -130,11 +129,13 @@ func (handler *RequestHandler) GetBlocksByID(req *types.GetBlocksByIDRequest) (*
 		result.BlockItems[i].BlockHeight = record.BlockHeight
 
 		if req.ReturnBlockBlob {
-			result.BlockItems[i].Block = *types.NewOpaqueBlockFromNative(record.Block)
+			result.BlockItems[i].Block = *types.NewOptionalBlock()
+			result.BlockItems[i].Block.Value = &record.Block
 		}
 
 		if req.ReturnReceiptBlob {
-			result.BlockItems[i].BlockReceipt = record.BlockReceipt
+			// TODO: Internally, Block Receipt needs to change
+			// result.BlockItems[i].BlockReceipt = record.BlockReceipt
 		}
 	}
 
@@ -166,8 +167,8 @@ func (handler *RequestHandler) fillBlocks(
 		// k is the index into the array
 		k := numBlocks - i - 1
 
-		blockItems[k].Block = *types.NewOpaqueBlockFromBlob(types.NewVariableBlob())
-		blockItems[k].BlockReceipt = *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob())
+		blockItems[k].Block = *types.NewOptionalBlock()
+		blockItems[k].BlockReceipt = *types.NewOptionalBlockReceipt()
 
 		vbKey := lastID.Serialize(types.NewVariableBlob())
 		recordBytes, err := handler.Backend.Get(*vbKey)
@@ -205,10 +206,11 @@ func (handler *RequestHandler) fillBlocks(
 		blockItems[k].BlockID = lastID
 		blockItems[k].BlockHeight = record.BlockHeight
 		if returnBlock {
-			blockItems[k].Block = *types.NewOpaqueBlockFromNative(record.Block)
+			blockItems[k].Block.Value = &record.Block
 		}
 		if returnReceipt {
-			blockItems[k].BlockReceipt = record.BlockReceipt
+			// TODO: Internally, Block Receipt needs to change
+			// blockItems[k].BlockReceipt = record.BlockReceipt
 		}
 
 		if len(record.PreviousBlockIds) < 1 {
@@ -424,17 +426,19 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID *types.Multihash, 
 // AddBlock adds a block to the block store
 func (handler *RequestHandler) AddBlock(req *types.AddBlockRequest) (*types.AddBlockResponse, error) {
 
-	req.BlockToAdd.Block.Unbox()
-	block, err := req.BlockToAdd.Block.GetNative()
-	if err != nil {
-		return nil, err
+	if !req.BlockToAdd.Block.HasValue() {
+		return nil, errors.New("Cannot add empty optional block")
 	}
+
+	block := req.BlockToAdd.Block.Value
 	record := types.BlockRecord{}
 
 	record.BlockID = block.ID
 	record.BlockHeight = block.Header.Height
 	record.Block = *block
-	record.BlockReceipt = req.BlockToAdd.BlockReceipt
+	// TODO: Internally, Block Receipt needs to change
+	// record.BlockReceipt = req.BlockToAdd.BlockReceipt
+	record.BlockReceipt = *types.NewOpaqueBlockReceipt()
 
 	if block.Header.Height > 1 {
 		previousHeights := getPreviousHeights(uint64(block.Header.Height))
@@ -463,7 +467,7 @@ func (handler *RequestHandler) AddBlock(req *types.AddBlockRequest) (*types.AddB
 	vbKey := record.BlockID.Serialize(types.NewVariableBlob())
 	vbValue := record.Serialize(types.NewVariableBlob())
 
-	err = handler.Backend.Put(*vbKey, *vbValue)
+	err := handler.Backend.Put(*vbKey, *vbValue)
 	if err != nil {
 		return nil, err
 	}

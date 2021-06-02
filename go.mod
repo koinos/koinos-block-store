@@ -7,8 +7,7 @@ require (
 	github.com/dgraph-io/badger v1.6.2
 	github.com/koinos/koinos-log-golang v0.0.0-20210413225320-69e5d4a4c6c2
 	github.com/koinos/koinos-mq-golang v0.0.0-20210424202816-d2bd4d1894d1
-	github.com/koinos/koinos-types-golang v0.1.1-0.20210324201507-baf0615e8212
-	github.com/koinos/koinos-util-golang v0.0.0-20210423190520-ca61be339d4d // indirect
+	github.com/koinos/koinos-types-golang v0.0.0-20210601210740-559c76121b53
 	github.com/spf13/pflag v1.0.3
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.16.0

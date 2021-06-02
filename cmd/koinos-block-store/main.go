@@ -130,8 +130,8 @@ func main() {
 		req := types.BlockStoreRequest{
 			Value: &types.AddBlockRequest{
 				BlockToAdd: types.BlockItem{
-					Block:        *types.NewOpaqueBlockFromNative(sub.Block),
-					BlockReceipt: *types.NewOpaqueBlockReceiptFromBlob(types.NewVariableBlob()),
+					Block:        types.OptionalBlock{Value: &sub.Block},
+					BlockReceipt: *types.NewOptionalBlockReceipt(),
 				},
 			},
 		}

@@ -1,7 +1,6 @@
 package bstore
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/bits"
@@ -51,14 +50,6 @@ type BlockNotPresent struct {
 
 func (e *BlockNotPresent) Error() string {
 	return fmt.Sprintf("Block not present - Digest: %s, ID: %d", base58.Encode(e.blockID.Digest), e.blockID.ID)
-}
-
-// TransactionNotPresent is an error type thrown when asking for a transaction that is not contained in the blockstore
-type TransactionNotPresent struct {
-}
-
-func (e *TransactionNotPresent) Error() string {
-	return "Transaction was not present"
 }
 
 // DeserializeError is an error type for errors during deserialization
@@ -476,56 +467,6 @@ func (handler *RequestHandler) AddBlock(req *types.AddBlockRequest) (*types.AddB
 	return &resp, nil
 }
 
-// AddTransaction adds a transaction to the block store
-func (handler *RequestHandler) AddTransaction(req *types.AddTransactionRequest) (*types.AddTransactionResponse, error) {
-	record := types.TransactionRecord{}
-	record.Transaction = req.Transaction
-
-	vbKey := req.Transaction.ID.Serialize(types.NewVariableBlob())
-	vbValue := record.Serialize(types.NewVariableBlob())
-
-	err := handler.Backend.Put(*vbKey, *vbValue)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := types.AddTransactionResponse{}
-	return &resp, nil
-}
-
-// GetTransactionsByID returns transactions by transaction ID
-func (handler *RequestHandler) GetTransactionsByID(req *types.GetTransactionsByIDRequest) (*types.GetTransactionsByIDResponse, error) {
-	resp := types.GetTransactionsByIDResponse{}
-	resp.TransactionItems = types.VectorTransactionItem(make([]types.TransactionItem, 0))
-
-	for _, tid := range req.TransactionIds {
-		vbKey := tid.Serialize(types.NewVariableBlob())
-
-		recordBytes, err := handler.Backend.Get(*vbKey)
-		if err != nil {
-			return nil, err
-		}
-		if len(recordBytes) == 0 {
-			log.Warnf("Transaction not present, key is %v", hex.EncodeToString(tid.Digest))
-			return nil, &TransactionNotPresent{}
-		}
-
-		vbValue := types.VariableBlob(recordBytes)
-		consumed, record, err := types.DeserializeTransactionRecord(&vbValue)
-		if err != nil {
-			log.Warn("Couldn't deserialize transaction record")
-			log.Warnf("vb: %v", recordBytes)
-			return nil, err
-		}
-		if consumed != uint64(len(recordBytes)) {
-			return nil, &DeserializeError{}
-		}
-		resp.TransactionItems = append(resp.TransactionItems, types.TransactionItem{Transaction: record.Transaction})
-	}
-
-	return &resp, nil
-}
-
 // GetHighestBlock returns the highest block seen by the block store
 func (handler *RequestHandler) GetHighestBlock(req *types.GetHighestBlockRequest) (*types.GetHighestBlockResponse, error) {
 	recordBytes, err := handler.Backend.Get(types.VariableBlob{highestBlockKey})
@@ -596,20 +537,6 @@ func (handler *RequestHandler) HandleRequest(req *types.BlockStoreRequest) *type
 	case *types.AddBlockRequest:
 		var result *types.AddBlockResponse
 		result, err = handler.AddBlock(v)
-		if err == nil {
-			response.Value = result
-		}
-		break
-	case *types.AddTransactionRequest:
-		var result *types.AddTransactionResponse
-		result, err = handler.AddTransaction(v)
-		if err == nil {
-			response.Value = result
-		}
-		break
-	case *types.GetTransactionsByIDRequest:
-		var result *types.GetTransactionsByIDResponse
-		result, err = handler.GetTransactionsByID(v)
 		if err == nil {
 			response.Value = result
 		}

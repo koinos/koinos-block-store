@@ -12,9 +12,11 @@ import (
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	log "github.com/koinos/koinos-log-golang"
 	koinosmq "github.com/koinos/koinos-mq-golang"
+	"github.com/koinos/koinos-proto-golang/koinos"
+	"github.com/koinos/koinos-proto-golang/koinos/broadcast"
+	"github.com/koinos/koinos-proto-golang/koinos/protocol"
+	"github.com/koinos/koinos-proto-golang/koinos/rpc"
 	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
-	"github.com/koinos/koinos-types-golang"
-	types "github.com/koinos/koinos-types-golang"
 	util "github.com/koinos/koinos-util-golang"
 	flag "github.com/spf13/pflag"
 )
@@ -100,13 +102,15 @@ func main() {
 	}
 
 	requestHandler.SetRPCHandler(blockstoreRPC, func(rpcType string, data []byte) ([]byte, error) {
-		req := types.NewBlockStoreRequest()
-		resp := types.NewBlockStoreResponse()
+		req := &block_store.BlockStoreRequest{}
+		resp := &block_store.BlockStoreResponse{}
 
 		err := json.Unmarshal(data, req)
 		if err != nil {
 			log.Warnf("Received malformed request: %s", string(data))
-			resp.Value = &types.BlockStoreErrorResponse{ErrorText: types.String(err.Error())}
+			eResp := rpc.ErrorResponse{Message: err.Error()}
+			rErr := block_store.BlockStoreResponse_Error{Error: &eResp}
+			resp.Response = &rErr
 		} else {
 			log.Debugf("Received RPC request: %s", string(data))
 			resp = handler.HandleRequest(req)
@@ -119,29 +123,30 @@ func main() {
 	})
 
 	requestHandler.SetBroadcastHandler(blockAccept, func(topic string, data []byte) {
-		sub := types.NewBlockAccepted()
+		sub := broadcast.BlockAccepted{}
 		err := json.Unmarshal(data, sub)
 		if err != nil {
 			log.Warnf("Unable to parse koinos.block.accept broadcast: %s", string(data))
 			return
 		}
 
-		log.Infof("Received broadcasted block - %s", util.BlockString(&sub.Block))
+		log.Infof("Received broadcasted block - %s", util.BlockString(sub.Block))
 
-		req := types.BlockStoreRequest{
-			Value: &types.AddBlockRequest{
-				BlockToAdd: types.BlockItem{
-					Block:        types.OptionalBlock{Value: &sub.Block},
-					BlockReceipt: *types.NewOptionalBlockReceipt(),
-				},
+		iReq := block_store.AddBlockRequest{
+			BlockToAdd: &block_store.BlockItem{
+				Block:   sub.GetBlock(),
+				Receipt: &protocol.BlockReceipt{},
 			},
 		}
+		bsReq := block_store.BlockStoreRequest_AddBlock{AddBlock: &iReq}
+		req := block_store.BlockStoreRequest{Request: &bsReq}
+
 		_ = handler.HandleRequest(&req)
 
-		err = handler.UpdateHighestBlock(&types.BlockTopology{
-			ID:       sub.Block.ID,
-			Height:   sub.Block.Header.Height,
-			Previous: sub.Block.Header.Previous,
+		err = handler.UpdateHighestBlock(&koinos.BlockTopology{
+			Id:       sub.GetBlock().GetId(),
+			Height:   sub.GetBlock().GetHeader().GetHeight(),
+			Previous: sub.GetBlock().GetHeader().GetPrevious(),
 		})
 		if err != nil {
 			log.Warn("Error while updating highest block")

@@ -531,8 +531,8 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 				}
 				checkLengths(result[j])
 			} else {
-				expectedBlockID, _ := multihash.EncodeName([]byte{}, "sha2-256")
-				if bytes.Compare(result[j].GetBlockId(), expectedBlockID) != 0 {
+				expectedBlockID := []byte{}
+				if !bytes.Equal(result[j].GetBlockId(), expectedBlockID) {
 					t.Error("Expected empty multihash for non-existent block")
 				}
 				if result[j].BlockHeight != 0 {

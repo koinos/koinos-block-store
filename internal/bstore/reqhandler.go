@@ -122,8 +122,7 @@ func (handler *RequestHandler) GetBlocksByID(req *block_store.GetBlocksByIdReque
 			continue
 		}
 
-		result.BlockItems[i].BlockId = record.GetBlockId()
-		result.BlockItems[i].BlockHeight = record.GetBlockHeight()
+		result.BlockItems[i] = &block_store.BlockItem{BlockId: record.GetBlockId(), BlockHeight: record.GetBlockHeight()}
 
 		if req.GetReturnBlock() {
 			result.BlockItems[i].Block = record.Block

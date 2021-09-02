@@ -12,6 +12,8 @@ import (
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	log "github.com/koinos/koinos-log-golang"
 	koinosmq "github.com/koinos/koinos-mq-golang"
+	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
+	"github.com/koinos/koinos-types-golang"
 	types "github.com/koinos/koinos-types-golang"
 	util "github.com/koinos/koinos-util-golang"
 	flag "github.com/spf13/pflag"
@@ -89,12 +91,11 @@ func main() {
 
 	handler := bstore.RequestHandler{Backend: backend}
 
-	_, err = handler.GetHighestBlock(types.NewGetHighestBlockRequest())
+	_, err = handler.GetHighestBlock(&block_store.GetHighestBlockRequest{})
 	if err != nil {
 		if _, ok := err.(*bstore.UnexpectedHeightError); ok {
-			handler.UpdateHighestBlock(&types.BlockTopology{
-				Height: 0,
-			})
+			bt := koinos.BlockTopology{Height: 0}
+			handler.UpdateHighestBlock(&bt)
 		}
 	}
 

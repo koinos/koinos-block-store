@@ -12,8 +12,10 @@ import (
 	"testing"
 
 	"github.com/dgraph-io/badger"
+	"github.com/multiformats/go-multihash"
 
-	types "github.com/koinos/koinos-types-golang"
+	"github.com/koinos/koinos-proto-golang/koinos"
+	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
 )
 
 const (
@@ -52,25 +54,6 @@ func CloseBackend(b interface{}) {
 		break
 	default:
 		panic("unknown backend type")
-	}
-}
-
-func TestHandleReservedRequest(t *testing.T) {
-	for bType := range backendTypes {
-		b := NewBackend(bType)
-		handler := RequestHandler{b}
-
-		testReq := types.BlockStoreRequest{Value: types.NewBlockStoreReservedRequest()}
-		result := handler.HandleRequest(&testReq)
-
-		errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-		if !ok {
-			t.Error("Should have errored BlockStoreError")
-		}
-		if errval.ErrorText != "Reserved request is not supported" {
-			t.Error("Unexpected error text")
-		}
-		CloseBackend(b)
 	}
 }
 
@@ -121,15 +104,14 @@ func TestGetPreviousHeights(t *testing.T) {
 }
 
 // GetNonExistentBlockID returns a made-up block ID that shouldn't correspond to any actual block.
-func GetNonExistentBlockID(num uint64) types.Multihash {
+func GetNonExistentBlockID(num uint64) []byte {
 	dataBytes := make([]byte, binary.MaxVarintLen64)
 	count := binary.PutUvarint(dataBytes, num)
 
 	hash := sha256.Sum256(dataBytes[:count])
 
-	var vb types.VariableBlob = types.VariableBlob(hash[:])
-
-	return types.Multihash{ID: 0x12, Digest: vb}
+	mHashBuf, _ := multihash.EncodeName(hash[:], "sha2-256")
+	return mHashBuf
 }
 
 func BuildTestTree(t *testing.T, handler *RequestHandler, bt *BlockTree) {
@@ -137,14 +119,13 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, bt *BlockTree) {
 
 	for _, num := range bt.Numbers {
 
-		addReq := types.AddBlockRequest{}
-		addReq.BlockToAdd.Block.Value = bt.ByNum[num]
-		//receipt := bt.ReceiptByNum[num]
-		addReq.BlockToAdd.BlockReceipt = *types.NewOptionalBlockReceipt()
-		addReq.BlockToAdd.BlockID = bt.ByNum[num].ID
-		addReq.BlockToAdd.BlockHeight = bt.ByNum[num].Header.Height
+		addReq := block_store.AddBlockRequest{BlockToAdd: &block_store.BlockItem{}}
+		addReq.BlockToAdd.Block = bt.ByNum[num]
+		addReq.BlockToAdd.BlockId = bt.ByNum[num].GetId()
+		addReq.BlockToAdd.BlockHeight = bt.ByNum[num].GetHeader().GetHeight()
 
-		genericReq := types.BlockStoreRequest{Value: &addReq}
+		iReq := block_store.BlockStoreRequest_AddBlock{AddBlock: &addReq}
+		genericReq := block_store.BlockStoreRequest{Request: &iReq}
 
 		_, err := json.Marshal(genericReq)
 		if err != nil {
@@ -156,32 +137,30 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, bt *BlockTree) {
 		if result == nil {
 			t.Error("Got nil result")
 		}
-		errval, ok := result.Value.(*types.BlockStoreErrorResponse)
+
+		errval, ok := result.GetResponse().(*block_store.BlockStoreResponse_Error)
 		if ok {
 			fmt.Printf("%v\n", addReq)
-			t.Error("Got error adding block:", errval.ErrorText)
+			t.Error("Got error adding block:", errval.Error.Message)
 		}
 
-		getNeReq := types.GetBlocksByHeightRequest{}
-		getNeReq.HeadBlockID = nonExistentBlockID
-		getNeReq.AncestorStartHeight = bt.ByNum[num].Header.Height - 1
+		getNeReq := block_store.GetBlocksByHeightRequest{}
+		getNeReq.HeadBlockId = nonExistentBlockID
+		getNeReq.AncestorStartHeight = bt.ByNum[num].GetHeader().GetHeight() - 1
 		getNeReq.NumBlocks = 1
 		getNeReq.ReturnBlock = false
 		getNeReq.ReturnReceipt = false
 
-		genericNeReq := types.BlockStoreRequest{Value: &getNeReq}
-		_, err = json.Marshal(genericNeReq)
-		if err != nil {
-			t.Error("Could not marshal JSON", err)
-		}
+		iNeReq := block_store.BlockStoreRequest_GetBlocksByHeight{GetBlocksByHeight: &getNeReq}
+		genericNeReq := block_store.BlockStoreRequest{Request: &iNeReq}
 
 		result = handler.HandleRequest(&genericNeReq)
-		errval, ok = result.Value.(*types.BlockStoreErrorResponse)
+		errval, ok = result.GetResponse().(*block_store.BlockStoreResponse_Error)
 		if !ok {
 			t.Error("Expected error adding block")
 		} else {
 			blockNotPresent := BlockNotPresent{nonExistentBlockID}
-			if string(errval.ErrorText) != blockNotPresent.Error() {
+			if string(errval.Error.Message) != blockNotPresent.Error() {
 				t.Error("Unexpected error text")
 			}
 		}
@@ -287,25 +266,26 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 	bt := ToBlockTree(mbt)
 
 	for _, num := range bt.Numbers {
-		bt.ByNum[num].Header.Height = types.BlockHeightType(num % 100)
+		bt.ByNum[num].Header.Height = uint64(num % 100)
 	}
 
 	BuildTestTree(t, &handler, bt)
 
 	for i := 0; i < len(ancestorCases); i++ {
 		for b := ancestorCases[i][0]; b <= ancestorCases[i][1]; b++ {
-			blockID := bt.ByNum[b].ID
+			blockID := bt.ByNum[b].Id
 			height := ancestorCases[i][2]
-			expectedAncestorID := bt.ByNum[ancestorCases[i][3]].ID
+			expectedAncestorID := bt.ByNum[ancestorCases[i][3]].Id
 
-			getReq := types.GetBlocksByHeightRequest{}
-			getReq.HeadBlockID = blockID
-			getReq.AncestorStartHeight = types.BlockHeightType(height)
+			getReq := block_store.GetBlocksByHeightRequest{}
+			getReq.HeadBlockId = blockID
+			getReq.AncestorStartHeight = height
 			getReq.NumBlocks = 1
 			getReq.ReturnBlock = false
 			getReq.ReturnReceipt = false
 
-			genericReq := types.BlockStoreRequest{Value: &getReq}
+			iReq := block_store.BlockStoreRequest_GetBlocksByHeight{GetBlocksByHeight: &getReq}
+			genericReq := block_store.BlockStoreRequest{Request: &iReq}
 
 			_, err := json.Marshal(genericReq)
 			if err != nil {
@@ -316,51 +296,52 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			if result == nil {
 				t.Error("Got nil result")
 			}
-			errval, ok := result.Value.(*types.BlockStoreErrorResponse)
+			errval, ok := result.GetResponse().(*block_store.BlockStoreResponse_Error)
 			if ok {
-				t.Error("Got error retrieving block:", errval.ErrorText)
+				t.Error("Got error retrieving block:", errval.Error.Message)
 				t.FailNow()
 			}
 
-			resp := result.Value.(*types.GetBlocksByHeightResponse)
-			if len(resp.BlockItems) != 1 {
+			resp := result.GetResponse().(*block_store.BlockStoreResponse_GetBlocksByHeight)
+			if len(resp.GetBlocksByHeight.GetBlockItems()) != 1 {
 				t.Error("Expected result of length 1")
 			}
 
-			if resp.BlockItems[0].BlockHeight != types.BlockHeightType(height) {
-				t.Errorf("Unexpected ancestor height:  Got %d, expected %d", resp.BlockItems[0].BlockHeight, height)
+			if resp.GetBlocksByHeight.GetBlockItems()[0].BlockHeight != height {
+				t.Errorf("Unexpected ancestor height:  Got %d, expected %d", resp.GetBlocksByHeight.GetBlockItems()[0].BlockHeight, height)
 			}
 
-			if !resp.BlockItems[0].BlockID.Equals(&expectedAncestorID) {
+			if bytes.Compare(resp.GetBlocksByHeight.GetBlockItems()[0].GetBlockId(), expectedAncestorID) != 0 {
 				t.Error("Unexpected ancestor block ID")
 			}
 		}
 	}
 
 	for _, num := range bt.Numbers {
-		blockID := bt.ByNum[num].ID
+		blockID := bt.ByNum[num].Id
 		height := bt.ByNum[num].Header.Height
 
-		getReq := types.GetBlocksByHeightRequest{}
-		getReq.HeadBlockID = blockID
+		getReq := block_store.GetBlocksByHeightRequest{}
+		getReq.HeadBlockId = blockID
 		getReq.NumBlocks = 1
 		getReq.ReturnBlock = false
 		getReq.ReturnReceipt = false
 
 		// GetAncestorAtHeight where the requested height is equal to the height of the requested head
-		getReq.AncestorStartHeight = types.BlockHeightType(height + 1)
+		getReq.AncestorStartHeight = height + 1
 
-		genericReq := types.BlockStoreRequest{Value: &getReq}
+		iReq := block_store.BlockStoreRequest_GetBlocksByHeight{GetBlocksByHeight: &getReq}
+		genericReq := block_store.BlockStoreRequest{Request: &iReq}
 
 		result := handler.HandleRequest(&genericReq)
 		if result == nil {
 			t.Error("Got nil result")
 		}
-		errval, ok := result.Value.(*types.BlockStoreErrorResponse)
+		errval, ok := result.GetResponse().(*block_store.BlockStoreResponse_Error)
 		if !ok {
 			t.Error("Unexpectedly got non-error result attempting to retrieve descendant block:", result)
 		} else {
-			if errval.ErrorText != "Block height mismatch" {
+			if errval.Error.Message != "Block height mismatch" {
 				t.Error("Unexpected error text")
 			}
 		}
@@ -370,29 +351,30 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 	for i := 0; i < len(tree); i++ {
 		headIndex := len(tree[i]) - 1
 		headNum := tree[i][headIndex]
-		headID := bt.ByNum[headNum].ID
+		headID := bt.ByNum[headNum].Id
 
 		for j := 1; j < len(treeHist[i]); j++ {
 			// Iterate beyond the tree
 			kMax := len(treeHist[i]) + 5
 
 			for k := j; k < kMax; k++ {
-				getReq := types.GetBlocksByHeightRequest{}
-				getReq.HeadBlockID = headID
-				getReq.NumBlocks = types.UInt32(k - j)
+				getReq := block_store.GetBlocksByHeightRequest{}
+				getReq.HeadBlockId = headID
+				getReq.NumBlocks = uint32(k - j)
 				getReq.ReturnBlock = false
 				getReq.ReturnReceipt = false
-				getReq.AncestorStartHeight = types.BlockHeightType(j)
+				getReq.AncestorStartHeight = uint64(j)
 
-				genericReq := types.BlockStoreRequest{Value: &getReq}
+				iReq := block_store.BlockStoreRequest_GetBlocksByHeight{GetBlocksByHeight: &getReq}
+				genericReq := block_store.BlockStoreRequest{Request: &iReq}
 
 				result := handler.HandleRequest(&genericReq)
 				if result == nil {
 					t.Error("Got nil result")
 				}
-				errval, ok := result.Value.(*types.BlockStoreErrorResponse)
+				errval, ok := result.GetResponse().(*block_store.BlockStoreResponse_Error)
 				if ok {
-					t.Error("GetBlocksByHeightReq returned error:", errval.ErrorText)
+					t.Error("GetBlocksByHeightReq returned error:", errval.Error.Message)
 				}
 
 				endIndex := k
@@ -401,18 +383,18 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				}
 				blockSeq := treeHist[i][j:endIndex]
 
-				resp := result.Value.(*types.GetBlocksByHeightResponse)
-				if len(resp.BlockItems) != len(blockSeq) {
-					t.Errorf("Unexpected result length, expected %d, got %d, expect array is %v", len(resp.BlockItems), len(blockSeq), blockSeq)
+				resp := result.GetResponse().(*block_store.BlockStoreResponse_GetBlocksByHeight)
+				if len(resp.GetBlocksByHeight.GetBlockItems()) != len(blockSeq) {
+					t.Errorf("Unexpected result length, expected %d, got %d, expect array is %v", len(resp.GetBlocksByHeight.GetBlockItems()), len(blockSeq), blockSeq)
 				}
 
-				for checkIndex := 0; checkIndex < len(resp.BlockItems); checkIndex++ {
-					expectedHeight := types.BlockHeightType(blockSeq[checkIndex] % 100)
-					if resp.BlockItems[checkIndex].BlockHeight != expectedHeight {
+				for checkIndex := 0; checkIndex < len(resp.GetBlocksByHeight.GetBlockItems()); checkIndex++ {
+					expectedHeight := blockSeq[checkIndex] % 100
+					if resp.GetBlocksByHeight.GetBlockItems()[checkIndex].BlockHeight != expectedHeight {
 						t.Error("Unexpected block height in response")
 					}
-					expectedBlockID := bt.ByNum[blockSeq[checkIndex]].ID
-					if !resp.BlockItems[checkIndex].BlockID.Equals(&expectedBlockID) {
+					expectedBlockID := bt.ByNum[blockSeq[checkIndex]].GetId()
+					if bytes.Compare(resp.GetBlocksByHeight.GetBlockItems()[checkIndex].GetBlockId(), expectedBlockID) != 0 {
 						t.Error("Unexpected ancestor block ID")
 					}
 				}
@@ -441,50 +423,51 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 	handler := RequestHandler{b}
 	mbt := NewMockBlockTree(tree)
 	for _, mb := range mbt.ByNum {
-		mb.Receipt = types.VariableBlob(fmt.Sprintf("Receipt for block %d", mb.Num))
+		mb.Receipt = []byte(fmt.Sprintf("Receipt for block %d", mb.Num))
 	}
 	bt := ToBlockTree(mbt)
 	BuildTestTree(t, &handler, bt)
 
-	getID := func(num uint64) types.Multihash {
+	getID := func(num uint64) []byte {
 		if num < 900 {
-			return bt.ByNum[num].ID
+			return bt.ByNum[num].GetId()
 		}
 		return GetNonExistentBlockID(num)
 	}
 
-	getBlocksByID := func(ids []uint64, returnBlock bool, returnReceipt bool, errText string) []types.BlockItem {
-		req := types.NewGetBlocksByIDRequest()
-		req.BlockID = make([]types.Multihash, len(ids))
+	getBlocksByID := func(ids []uint64, returnBlock bool, returnReceipt bool, errText string) []*block_store.BlockItem {
+		req := block_store.GetBlocksByIdRequest{}
+		req.BlockId = make([][]byte, len(ids))
 		for i := 0; i < len(ids); i++ {
-			req.BlockID[i] = getID(ids[i])
+			req.BlockId[i] = getID(ids[i])
 		}
-		req.ReturnBlockBlob = types.Boolean(returnBlock)
-		req.ReturnReceiptBlob = types.Boolean(returnReceipt)
+		req.ReturnBlock = returnBlock
+		req.ReturnReceipt = returnReceipt
 
-		genericReq := types.BlockStoreRequest{Value: req}
+		iReq := block_store.BlockStoreRequest_GetBlocksById{GetBlocksById: &req}
+		genericReq := block_store.BlockStoreRequest{Request: &iReq}
 
 		result := handler.HandleRequest(&genericReq)
 		if result == nil {
 			t.Error("Got nil result")
 		}
-		errval, isErr := result.Value.(*types.BlockStoreErrorResponse)
+		errval, isErr := result.GetResponse().(*block_store.BlockStoreResponse_Error)
 		if errText == "" {
 			if isErr {
-				t.Error("GetBlocksByIDReq returned error (expecting success):", errval.ErrorText)
+				t.Error("GetBlocksByIDReq returned error (expecting success):", errval.Error.Message)
 			}
 			// OK:  Expected success, got success
 		} else {
 			if isErr {
-				if errText != string(errval.ErrorText) {
-					t.Error("GetBlocksByIDReq returned unexpected error:", errval.ErrorText)
+				if errText != string(errval.Error.Message) {
+					t.Error("GetBlocksByIDReq returned unexpected error:", errval.Error.Message)
 				}
 				// OK:  Expected error, got error, errText matched
-				return []types.BlockItem{}
+				return []*block_store.BlockItem{}
 			}
 			t.Error("GetBlocksByIDReq returned success, expected error was:", errText)
 		}
-		return result.Value.(*types.GetBlocksByIDResponse).BlockItems
+		return result.GetResponse().(*block_store.BlockStoreResponse_GetBlocksById).GetBlocksById.GetBlockItems()
 	}
 
 	testCases := [][]uint64{
@@ -492,39 +475,39 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 		{990}, {990, 991}, {990, 108, 991, 992, 104},
 	}
 
-	var checkBlockLength func(*types.BlockItem)
-	var checkReceiptLength func(*types.BlockItem)
+	var checkBlockLength func(*block_store.BlockItem)
+	var checkReceiptLength func(*block_store.BlockItem)
 
 	if returnBlock {
-		checkBlockLength = func(item *types.BlockItem) {
-			if !item.Block.HasValue() {
+		checkBlockLength = func(item *block_store.BlockItem) {
+			if item.GetBlock() == nil {
 				t.Error("Expected non-empty block")
 			}
 		}
 	} else {
-		checkBlockLength = func(item *types.BlockItem) {
-			if item.Block.HasValue() {
+		checkBlockLength = func(item *block_store.BlockItem) {
+			if item.GetBlock() != nil {
 				t.Error("Expected empty block")
 			}
 		}
 	}
 
 	if returnReceipt {
-		checkReceiptLength = func(item *types.BlockItem) {
+		checkReceiptLength = func(item *block_store.BlockItem) {
 			// TODO Fix this when internal representation of block receipt is fixed.
 			// if !item.BlockReceipt.HasValue() {
 			// 	t.Error("Expected non-empty receipt")
 			// }
 		}
 	} else {
-		checkReceiptLength = func(item *types.BlockItem) {
-			if item.BlockReceipt.HasValue() {
+		checkReceiptLength = func(item *block_store.BlockItem) {
+			if item.GetReceipt() != nil {
 				t.Error("Expected empty receipt")
 			}
 		}
 	}
 
-	checkLengths := func(item *types.BlockItem) {
+	checkLengths := func(item *block_store.BlockItem) {
 		checkBlockLength(item)
 		checkReceiptLength(item)
 	}
@@ -538,18 +521,18 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 		for j := 0; j < len(testCases[i]); j++ {
 			if testCases[i][j] < 900 {
 				expectedBlockID := getID(testCases[i][j])
-				if !result[j].BlockID.Equals(&expectedBlockID) {
-					fmt.Printf("%d %d %v %v\n", i, j, expectedBlockID, result[j].BlockID)
+				if bytes.Compare(result[j].GetBlockId(), expectedBlockID) != 0 {
+					fmt.Printf("%d %d %v %v\n", i, j, expectedBlockID, result[j].GetBlockId())
 					t.Error("Unexpected block ID")
 					return
 				}
 				if uint64(result[j].BlockHeight) != testCases[i][j]%100 {
 					t.Error("Unexpected block height")
 				}
-				checkLengths(&result[j])
+				checkLengths(result[j])
 			} else {
-				expectedBlockID := types.NewMultihash()
-				if !result[j].BlockID.Equals(expectedBlockID) {
+				expectedBlockID, _ := multihash.EncodeName([]byte{}, "sha2-256")
+				if bytes.Compare(result[j].GetBlockId(), expectedBlockID) != 0 {
 					t.Error("Expected empty multihash for non-existent block")
 				}
 				if result[j].BlockHeight != 0 {
@@ -566,31 +549,6 @@ func TestGetBlocksByID(t *testing.T) {
 			testGetBlocksByIDImpl(t, returnBlock, returnReceipt)
 		}
 	}
-}
-
-func GetAddTransactionReq(n types.UInt64) types.AddTransactionRequest {
-	vb := n.Serialize(types.NewVariableBlob())
-	m := types.Multihash{ID: 0x12, Digest: *vb}
-	r := types.AddTransactionRequest{
-		Transaction: types.Transaction{
-			ID:          m,
-			ActiveData:  *types.NewOpaqueActiveTransactionData(),
-			PassiveData: *types.NewOpaquePassiveTransactionData(),
-		},
-	}
-	return r
-}
-
-func GetGetTransactionsByIDReq(start uint64, num uint64) types.GetTransactionsByIDRequest {
-	vm := make([]types.Multihash, 0)
-	for i := types.UInt64(start); i < types.UInt64(start+num); i++ {
-		vb := i.Serialize(types.NewVariableBlob())
-		m := types.Multihash{ID: 0x12, Digest: *vb}
-		vm = append(vm, m)
-	}
-
-	r := types.GetTransactionsByIDRequest{TransactionIds: vm}
-	return r
 }
 
 type TxnErrorBackend struct {
@@ -644,299 +602,115 @@ func (backend *TxnLongBackend) Get(key []byte) ([]byte, error) {
 	return []byte{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, nil
 }
 
-func TestAddTransaction(t *testing.T) {
-	reqs := make([]types.AddTransactionRequest, 32)
-	for i := 0; i < 32; i++ {
-		reqs[i] = GetAddTransactionReq(types.UInt64(i))
-	}
-
-	// Add the transactions
-	for bType := range backendTypes {
-		b := NewBackend(bType)
-		handler := RequestHandler{b}
-		for _, req := range reqs {
-			bsr := types.BlockStoreRequest{Value: &req}
-			result := handler.HandleRequest(&bsr)
-			if result == nil {
-				t.Error("Got nil result")
-			}
-			errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-			if ok {
-				t.Error("Got error adding transaction:", errval.ErrorText)
-			}
-		}
-
-		// Test adding an already existing transaction
-		{
-			bsr := types.BlockStoreRequest{Value: &reqs[0]}
-			result := handler.HandleRequest(&bsr)
-			if result == nil {
-				t.Error("Got nil result")
-			}
-			errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-			if ok {
-				t.Error("Got error adding transaction:", errval.ErrorText)
-			}
-		}
-
-		// Fetch the transactions
-		{
-			r := GetGetTransactionsByIDReq(0, 32)
-			bsr := types.BlockStoreRequest{Value: &r}
-			result := handler.HandleRequest(&bsr)
-			if result == nil {
-				t.Error("Got nil result")
-			}
-			errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-			if ok {
-				t.Error("Error fetching transactions:", errval.ErrorText)
-			}
-
-			tres, ok := result.Value.(*types.GetTransactionsByIDResponse)
-			if !ok {
-				t.Error("Result is wrong type")
-			}
-
-			for i, nt := range tres.TransactionItems {
-				if !bytes.Equal(*&reqs[i].Transaction.ID.Digest, *&nt.Transaction.ID.Digest) {
-					t.Error("Result does not match added transaction")
-				}
-			}
-		}
-
-		// Test fetching an invalid transaction
-		{
-			r := GetGetTransactionsByIDReq(64, 1)
-			bsr := types.BlockStoreRequest{Value: &r}
-			result := handler.HandleRequest(&bsr)
-			if result == nil {
-				t.Error("Got nil result")
-			}
-			errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-			if !ok {
-				t.Error("Did not recieve expected error")
-			} else if errval.ErrorText != "Transaction was not present" {
-				t.Error("Did not recieve expected error text")
-			}
-		}
-
-		CloseBackend(b)
-	}
-
-	// Test error on add
-	{
-		handler := RequestHandler{&TxnErrorBackend{}}
-		r := GetAddTransactionReq(2)
-		tr := types.BlockStoreRequest{Value: &r}
-		result := handler.HandleRequest(&tr)
-		errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-		if !ok {
-			t.Error("Did not recieve expected error")
-		} else if errval.ErrorText != "Error on put" {
-			t.Error("Got unexpected error text: ", errval.ErrorText)
-		}
-	}
-
-	// Test error on get
-	{
-		handler := RequestHandler{&TxnErrorBackend{}}
-		r := GetGetTransactionsByIDReq(0, 1)
-		tr := types.BlockStoreRequest{Value: &r}
-		result := handler.HandleRequest(&tr)
-		errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-		if !ok {
-			t.Error("Did not recieve expected error")
-		} else if errval.ErrorText != "Error on get" {
-			t.Error("Got unexpected error text: ", errval.ErrorText)
-		}
-	}
-
-	// Test bad record
-	{
-		handler := RequestHandler{&TxnBadBackend{}}
-		r := GetGetTransactionsByIDReq(0, 1)
-		tr := types.BlockStoreRequest{Value: &r}
-		result := handler.HandleRequest(&tr)
-		errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-		if !ok {
-			t.Error("Did not recieve expected error")
-		} else if errval.ErrorText != "Could not deserialize variable blob size" {
-			t.Error("Got unexpected error text: ", errval.ErrorText)
-		}
-	}
-
-	// Test too long record
-	{
-		handler := RequestHandler{&TxnLongBackend{}}
-		r := GetGetTransactionsByIDReq(0, 1)
-		tr := types.BlockStoreRequest{Value: &r}
-		result := handler.HandleRequest(&tr)
-		errval, ok := result.Value.(*types.BlockStoreErrorResponse)
-		if !ok {
-			t.Error("Did not recieve expected error")
-		} else if errval.ErrorText != "Could not deserialize block" {
-			t.Error("Got unexpected error text: ", errval.ErrorText)
-		}
-	}
-}
-
 func TestGetHighestBlock(t *testing.T) {
 	for bType := range backendTypes {
-		var blockID types.Multihash
-		blockID.ID = 18
-		blockID.Digest = types.VariableBlob{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A}
+		blockID, _ := multihash.EncodeName([]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A}, "sha2-256")
+		previousID, _ := multihash.EncodeName([]byte{0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14}, "sha2-256")
+		height := uint64(2)
 
-		var previousID types.Multihash
-		previousID.ID = 18
-		blockID.Digest = types.VariableBlob{0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14}
-
-		var height types.BlockHeightType
-		height = 2
-
-		var topology types.BlockTopology
-		topology.ID = blockID
-		topology.Previous = previousID
-		topology.Height = height
+		topology := koinos.BlockTopology{Id: blockID, Previous: previousID, Height: height}
 
 		b := NewBackend(bType)
 		handler := RequestHandler{b}
 
-		req := types.NewGetHighestBlockRequest()
-		blockStoreReq := types.BlockStoreRequest{Value: req}
+		iReq := block_store.GetHighestBlockRequest{}
+		ghbReq := block_store.BlockStoreRequest_GetHighestBlock{GetHighestBlock: &iReq}
+		blockStoreReq := block_store.BlockStoreRequest{Request: &ghbReq}
 		result := handler.HandleRequest(&blockStoreReq)
 
-		errorResponse, ok := result.Value.(*types.BlockStoreErrorResponse)
+		errorResponse, ok := result.GetResponse().(*block_store.BlockStoreResponse_Error)
 		if !ok {
 			t.Error("Did not recieve expected response")
 		}
 
 		unexpectedHeightErr := UnexpectedHeightError{}
-		if string(errorResponse.ErrorText) != unexpectedHeightErr.Error() {
+		if string(errorResponse.Error.Message) != unexpectedHeightErr.Error() {
 			t.Error("Unexpected error")
 		}
 
 		handler.UpdateHighestBlock(&topology)
 
-		req = types.NewGetHighestBlockRequest()
-		blockStoreReq = types.BlockStoreRequest{Value: req}
+		iReq = block_store.GetHighestBlockRequest{}
+		ghbReq = block_store.BlockStoreRequest_GetHighestBlock{GetHighestBlock: &iReq}
+		blockStoreReq = block_store.BlockStoreRequest{Request: &ghbReq}
 		result = handler.HandleRequest(&blockStoreReq)
 
-		highestBlockResponse, ok := result.Value.(*types.GetHighestBlockResponse)
+		highestBlockResponse, ok := result.GetResponse().(*block_store.BlockStoreResponse_GetHighestBlock)
 		if !ok {
 			t.Error("Did not recieve expected response")
 		}
 
-		if highestBlockResponse.Topology.ID.ID != blockID.ID {
+		if !bytes.Equal(highestBlockResponse.GetHighestBlock.GetTopology().GetId(), blockID) {
 			t.Error("Encountered an ID mismatch")
 		}
 
-		if !bytes.Equal(highestBlockResponse.Topology.ID.Digest, blockID.Digest) {
-			t.Error("Encountered a digest mismatch")
-		}
-
-		if highestBlockResponse.Topology.Previous.ID != previousID.ID {
+		if !bytes.Equal(highestBlockResponse.GetHighestBlock.GetTopology().GetPrevious(), previousID) {
 			t.Error("Encountered an ID mismatch")
 		}
 
-		if !bytes.Equal(highestBlockResponse.Topology.Previous.Digest, previousID.Digest) {
-			t.Error("Encountered a digest mismatch")
-		}
-
-		if highestBlockResponse.Topology.Height != height {
+		if highestBlockResponse.GetHighestBlock.GetTopology().GetHeight() != height {
 			t.Error("Encountered a height mismatch")
 		}
 
-		var lowerBlockID types.Multihash
-		lowerBlockID.ID = 18
-		lowerBlockID.Digest = types.VariableBlob{0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E}
+		// Create a lower block, ensure highest block is still the former
 
-		var lowerPreviousID types.Multihash
-		lowerPreviousID.ID = 18
-		lowerPreviousID.Digest = types.VariableBlob{0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28}
+		lowerBlockID, _ := multihash.EncodeName([]byte{0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E}, "sha2-256")
+		lowerPreviousID, _ := multihash.EncodeName([]byte{0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28}, "sha2-256")
+		lowerHeight := uint64(1)
 
-		var lowerHeight types.BlockHeightType
-		lowerHeight = 1
-
-		var lowerTopology types.BlockTopology
-		lowerTopology.ID = lowerBlockID
-		lowerTopology.Previous = lowerPreviousID
-		lowerTopology.Height = lowerHeight
-
+		lowerTopology := koinos.BlockTopology{Id: lowerBlockID, Previous: lowerPreviousID, Height: lowerHeight}
 		handler.UpdateHighestBlock(&lowerTopology)
 
-		req = types.NewGetHighestBlockRequest()
-		blockStoreReq = types.BlockStoreRequest{Value: req}
+		iReq = block_store.GetHighestBlockRequest{}
+		ghbReq = block_store.BlockStoreRequest_GetHighestBlock{GetHighestBlock: &iReq}
+		blockStoreReq = block_store.BlockStoreRequest{Request: &ghbReq}
 		result = handler.HandleRequest(&blockStoreReq)
 
-		highestBlockResponse, ok = result.Value.(*types.GetHighestBlockResponse)
+		highestBlockResponse, ok = result.GetResponse().(*block_store.BlockStoreResponse_GetHighestBlock)
 		if !ok {
 			t.Error("Did not recieve expected response")
 		}
 
-		if highestBlockResponse.Topology.ID.ID != blockID.ID {
+		if !bytes.Equal(highestBlockResponse.GetHighestBlock.GetTopology().GetId(), blockID) {
 			t.Error("Encountered an ID mismatch")
 		}
 
-		if !bytes.Equal(highestBlockResponse.Topology.ID.Digest, blockID.Digest) {
-			t.Error("Encountered a digest mismatch")
-		}
-
-		if highestBlockResponse.Topology.Previous.ID != previousID.ID {
+		if !bytes.Equal(highestBlockResponse.GetHighestBlock.GetTopology().GetPrevious(), previousID) {
 			t.Error("Encountered an ID mismatch")
 		}
 
-		if !bytes.Equal(highestBlockResponse.Topology.Previous.Digest, previousID.Digest) {
-			t.Error("Encountered a digest mismatch")
-		}
-
-		if highestBlockResponse.Topology.Height != height {
+		if highestBlockResponse.GetHighestBlock.GetTopology().GetHeight() != height {
 			t.Error("Encountered a height mismatch")
 		}
 
-		var higherBlockID types.Multihash
-		higherBlockID.ID = 18
-		higherBlockID.Digest = types.VariableBlob{0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32}
+		// Create a new highest block, ensure it is now the highest block in the block store
 
-		var higherPreviousID types.Multihash
-		higherPreviousID.ID = 18
-		higherPreviousID.Digest = types.VariableBlob{0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C}
+		higherBlockID, _ := multihash.EncodeName([]byte{0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E}, "sha2-256")
+		higherPreviousID, _ := multihash.EncodeName([]byte{0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28}, "sha2-256")
+		higherHeight := uint64(3)
 
-		var higherHeight types.BlockHeightType
-		higherHeight = 3
-
-		var higherTopology types.BlockTopology
-		higherTopology.ID = higherBlockID
-		higherTopology.Previous = higherPreviousID
-		higherTopology.Height = higherHeight
-
+		higherTopology := koinos.BlockTopology{Id: higherBlockID, Previous: higherPreviousID, Height: higherHeight}
 		handler.UpdateHighestBlock(&higherTopology)
 
-		req = types.NewGetHighestBlockRequest()
-		blockStoreReq = types.BlockStoreRequest{Value: req}
+		iReq = block_store.GetHighestBlockRequest{}
+		ghbReq = block_store.BlockStoreRequest_GetHighestBlock{GetHighestBlock: &iReq}
+		blockStoreReq = block_store.BlockStoreRequest{Request: &ghbReq}
 		result = handler.HandleRequest(&blockStoreReq)
 
-		highestBlockResponse, ok = result.Value.(*types.GetHighestBlockResponse)
+		highestBlockResponse, ok = result.GetResponse().(*block_store.BlockStoreResponse_GetHighestBlock)
 		if !ok {
 			t.Error("Did not recieve expected response")
 		}
 
-		if highestBlockResponse.Topology.ID.ID != higherBlockID.ID {
+		if !bytes.Equal(highestBlockResponse.GetHighestBlock.GetTopology().GetId(), higherBlockID) {
 			t.Error("Encountered an ID mismatch")
 		}
 
-		if !bytes.Equal(highestBlockResponse.Topology.ID.Digest, higherBlockID.Digest) {
-			t.Error("Encountered a digest mismatch")
-		}
-
-		if highestBlockResponse.Topology.Previous.ID != higherPreviousID.ID {
+		if !bytes.Equal(highestBlockResponse.GetHighestBlock.GetTopology().GetPrevious(), higherPreviousID) {
 			t.Error("Encountered an ID mismatch")
 		}
 
-		if !bytes.Equal(highestBlockResponse.Topology.Previous.Digest, higherPreviousID.Digest) {
-			t.Error("Encountered a digest mismatch")
-		}
-
-		if highestBlockResponse.Topology.Height != higherHeight {
+		if highestBlockResponse.GetHighestBlock.GetTopology().GetHeight() != higherHeight {
 			t.Error("Encountered a height mismatch")
 		}
 	}

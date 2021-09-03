@@ -14,7 +14,6 @@ import (
 	koinosmq "github.com/koinos/koinos-mq-golang"
 	"github.com/koinos/koinos-proto-golang/koinos"
 	"github.com/koinos/koinos-proto-golang/koinos/broadcast"
-	"github.com/koinos/koinos-proto-golang/koinos/protocol"
 	"github.com/koinos/koinos-proto-golang/koinos/rpc"
 	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
 	util "github.com/koinos/koinos-util-golang"
@@ -133,10 +132,7 @@ func main() {
 		log.Infof("Received broadcasted block - %s", util.BlockString(sub.Block))
 
 		iReq := block_store.AddBlockRequest{
-			BlockToAdd: &block_store.BlockItem{
-				Block:   sub.GetBlock(),
-				Receipt: &protocol.BlockReceipt{},
-			},
+			BlockToAdd: sub.GetBlock(),
 		}
 		bsReq := block_store.BlockStoreRequest_AddBlock{AddBlock: &iReq}
 		req := block_store.BlockStoreRequest{Request: &bsReq}

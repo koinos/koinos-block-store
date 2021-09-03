@@ -406,7 +406,7 @@ func (handler *RequestHandler) AddBlock(req *block_store.AddBlockRequest) (*bloc
 		return nil, errors.New("Cannot add empty optional block")
 	}
 
-	block := req.GetBlockToAdd().GetBlock()
+	block := req.GetBlockToAdd()
 	record := block_store.BlockRecord{}
 
 	record.BlockId = block.GetId()

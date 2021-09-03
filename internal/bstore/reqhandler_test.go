@@ -119,10 +119,7 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, bt *BlockTree) {
 
 	for _, num := range bt.Numbers {
 
-		addReq := block_store.AddBlockRequest{BlockToAdd: &block_store.BlockItem{}}
-		addReq.BlockToAdd.Block = bt.ByNum[num]
-		addReq.BlockToAdd.BlockId = bt.ByNum[num].GetId()
-		addReq.BlockToAdd.BlockHeight = bt.ByNum[num].GetHeader().GetHeight()
+		addReq := block_store.AddBlockRequest{BlockToAdd: bt.ByNum[num]}
 
 		iReq := block_store.BlockStoreRequest_AddBlock{AddBlock: &addReq}
 		genericReq := block_store.BlockStoreRequest{Request: &iReq}

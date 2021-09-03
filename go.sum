@@ -70,6 +70,8 @@ github.com/koinos/koinos-proto-golang v0.0.0-20210831175923-6cd6d78a3493 h1:E3i8
 github.com/koinos/koinos-proto-golang v0.0.0-20210831175923-6cd6d78a3493/go.mod h1:X0JDk9LJhh3zXCTtKc0OLL9zUGbVk1HIGPKi/WLpFuE=
 github.com/koinos/koinos-proto-golang v0.0.0-20210902222150-7023b1b9a041 h1:UZeTL/adNsTsL1DVGApdJEWxlY3RVAga+GIkSFuzKfc=
 github.com/koinos/koinos-proto-golang v0.0.0-20210902222150-7023b1b9a041/go.mod h1:X0JDk9LJhh3zXCTtKc0OLL9zUGbVk1HIGPKi/WLpFuE=
+github.com/koinos/koinos-proto-golang v0.0.0-20210903181657-cdaac56b2813 h1:AfPqtNpNjlS38O36xU27dwndIXgu19oF6pkAcN6QzMc=
+github.com/koinos/koinos-proto-golang v0.0.0-20210903181657-cdaac56b2813/go.mod h1:X0JDk9LJhh3zXCTtKc0OLL9zUGbVk1HIGPKi/WLpFuE=
 github.com/koinos/koinos-types-golang v0.0.0-20210526205640-7768b9840fe1 h1:paZhuJJwFOH00TY/I9nCw2GZHgr+rxahU2Fdvo6Qfeg=
 github.com/koinos/koinos-types-golang v0.0.0-20210526205640-7768b9840fe1/go.mod h1:inTj1woeLBXfRICUkKYjW7pCsrVJCBBJvMcOzx7+PSs=
 github.com/koinos/koinos-types-golang v0.0.0-20210625202421-b5923e117851 h1:1tXngztL4qhpbFL1brvlhp0pnohigMKcUaIgrZ6eYHo=

@@ -29,8 +29,8 @@ type MockBlock struct {
 	Num      uint64
 	Previous uint64
 
-	ActiveData    *protocol.BlockActiveData
-	PassiveData   *protocol.BlockPassiveData
+	ActiveData    []byte
+	PassiveData   []byte
 	SignatureData []byte
 
 	Transactions []*protocol.Transaction
@@ -60,8 +60,8 @@ type BlockTree struct {
 func NewMockBlock() *MockBlock {
 	mb := MockBlock{
 		Previous:      0,
-		ActiveData:    &protocol.BlockActiveData{},
-		PassiveData:   &protocol.BlockPassiveData{},
+		ActiveData:    []byte{},
+		PassiveData:   []byte{},
 		SignatureData: make([]byte, 0),
 
 		Transactions: make([]*protocol.Transaction, 0),
@@ -81,8 +81,7 @@ func GetEmptyBlockID() []byte {
 // ComputeBlockID computes the block ID according to cryptographic constraints
 func ComputeBlockID(block *protocol.Block) []byte {
 	sHeader, _ := proto.Marshal(block.GetHeader())
-	sActive, _ := proto.Marshal(block.GetActive())
-	sDataToHash := append(sHeader, sActive...)
+	sDataToHash := append(sHeader, block.GetActive()...)
 
 	hash := sha256.Sum256(sDataToHash)
 

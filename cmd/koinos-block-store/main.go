@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -18,6 +17,7 @@ import (
 	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
 	util "github.com/koinos/koinos-util-golang"
 	flag "github.com/spf13/pflag"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -104,7 +104,7 @@ func main() {
 		req := &block_store.BlockStoreRequest{}
 		resp := &block_store.BlockStoreResponse{}
 
-		err := json.Unmarshal(data, req)
+		err := proto.Unmarshal(data, req)
 		if err != nil {
 			log.Warnf("Received malformed request: %s", string(data))
 			eResp := rpc.ErrorResponse{Message: err.Error()}
@@ -116,14 +116,14 @@ func main() {
 		}
 
 		var outputBytes []byte
-		outputBytes, err = json.Marshal(&resp)
+		outputBytes, err = proto.Marshal(resp)
 
 		return outputBytes, err
 	})
 
 	requestHandler.SetBroadcastHandler(blockAccept, func(topic string, data []byte) {
 		sub := broadcast.BlockAccepted{}
-		err := json.Unmarshal(data, sub)
+		err := proto.Unmarshal(data, &sub)
 		if err != nil {
 			log.Warnf("Unable to parse koinos.block.accept broadcast: %s", string(data))
 			return

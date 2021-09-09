@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ import (
 	"github.com/koinos/koinos-proto-golang/koinos/rpc"
 	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
 	util "github.com/koinos/koinos-util-golang"
+	"github.com/multiformats/go-multihash"
 	flag "github.com/spf13/pflag"
 	"google.golang.org/protobuf/proto"
 )
@@ -95,7 +97,8 @@ func main() {
 	_, err = handler.GetHighestBlock(&block_store.GetHighestBlockRequest{})
 	if err != nil {
 		if _, ok := err.(*bstore.UnexpectedHeightError); ok {
-			bt := koinos.BlockTopology{Height: 0}
+			mh, _ := multihash.EncodeName(make([]byte, 32), "sha2-256")
+			bt := koinos.BlockTopology{Id: mh, Height: 0}
 			handler.UpdateHighestBlock(&bt)
 		}
 	}
@@ -106,12 +109,12 @@ func main() {
 
 		err := proto.Unmarshal(data, req)
 		if err != nil {
-			log.Warnf("Received malformed request: %s", string(data))
+			log.Warnf("Received malformed request: 0x%v", hex.EncodeToString(data))
 			eResp := rpc.ErrorResponse{Message: err.Error()}
 			rErr := block_store.BlockStoreResponse_Error{Error: &eResp}
 			resp.Response = &rErr
 		} else {
-			log.Debugf("Received RPC request: %s", string(data))
+			log.Debugf("Received RPC request: 0x%v", hex.EncodeToString(data))
 			resp = handler.HandleRequest(req)
 		}
 

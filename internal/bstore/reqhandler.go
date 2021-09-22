@@ -56,14 +56,6 @@ func (e *BlockNotPresent) Error() string {
 	return fmt.Sprintf("Block not present - ID: %v", base58.Encode(e.blockID))
 }
 
-// TransactionNotPresent is an error type thrown when asking for a transaction that is not contained in the blockstore
-type TransactionNotPresent struct {
-}
-
-func (e *TransactionNotPresent) Error() string {
-	return "Transaction was not present"
-}
-
 // DeserializeError is an error type for errors during deserialization
 type DeserializeError struct {
 }
@@ -217,8 +209,13 @@ func (handler *RequestHandler) GetBlocksByHeight(req *block_store.GetBlocksByHei
 	if req.NumBlocks <= 0 {
 		return &resp, nil
 	}
+
 	if req.ReturnReceipt {
 		return nil, &NotImplemented{}
+	}
+
+	if req.AncestorStartHeight == 0 {
+		return nil, errors.New("ancestor_start_height must be greater than 0")
 	}
 
 	//resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, req.NumBlocks))

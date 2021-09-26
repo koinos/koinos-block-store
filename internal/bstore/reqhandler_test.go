@@ -144,6 +144,9 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, bt *BlockTree) {
 		getNeReq := block_store.GetBlocksByHeightRequest{}
 		getNeReq.HeadBlockId = nonExistentBlockID
 		getNeReq.AncestorStartHeight = bt.ByNum[num].GetHeader().GetHeight() - 1
+		if getNeReq.AncestorStartHeight == 0 {
+			getNeReq.AncestorStartHeight = 1
+		}
 		getNeReq.NumBlocks = 1
 		getNeReq.ReturnBlock = false
 		getNeReq.ReturnReceipt = false
@@ -397,6 +400,19 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				}
 			}
 		}
+	}
+
+	// Test bad RPC
+	byHeightReq := &block_store.GetBlocksByHeightRequest{
+		HeadBlockId:         bt.ByNum[819].Id,
+		AncestorStartHeight: 0,
+		NumBlocks:           1,
+		ReturnBlock:         true,
+		ReturnReceipt:       false,
+	}
+	_, err := handler.GetBlocksByHeight(byHeightReq)
+	if err == nil {
+		t.Errorf("Excepted error for AncestorStartHeight == 0")
 	}
 
 	CloseBackend(b)

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/signal"
@@ -12,9 +12,14 @@ import (
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	log "github.com/koinos/koinos-log-golang"
 	koinosmq "github.com/koinos/koinos-mq-golang"
-	types "github.com/koinos/koinos-types-golang"
+	"github.com/koinos/koinos-proto-golang/koinos"
+	"github.com/koinos/koinos-proto-golang/koinos/broadcast"
+	"github.com/koinos/koinos-proto-golang/koinos/rpc"
+	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
 	util "github.com/koinos/koinos-util-golang"
+	"github.com/multiformats/go-multihash"
 	flag "github.com/spf13/pflag"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -89,58 +94,58 @@ func main() {
 
 	handler := bstore.RequestHandler{Backend: backend}
 
-	_, err = handler.GetHighestBlock(types.NewGetHighestBlockRequest())
+	_, err = handler.GetHighestBlock(&block_store.GetHighestBlockRequest{})
 	if err != nil {
 		if _, ok := err.(*bstore.UnexpectedHeightError); ok {
-			handler.UpdateHighestBlock(&types.BlockTopology{
-				Height: 0,
-			})
+			mh, _ := multihash.EncodeName(make([]byte, 32), "sha2-256")
+			bt := koinos.BlockTopology{Id: mh, Height: 0}
+			handler.UpdateHighestBlock(&bt)
 		}
 	}
 
 	requestHandler.SetRPCHandler(blockstoreRPC, func(rpcType string, data []byte) ([]byte, error) {
-		req := types.NewBlockStoreRequest()
-		resp := types.NewBlockStoreResponse()
+		req := &block_store.BlockStoreRequest{}
+		resp := &block_store.BlockStoreResponse{}
 
-		err := json.Unmarshal(data, req)
+		err := proto.Unmarshal(data, req)
 		if err != nil {
-			log.Warnf("Received malformed request: %s", string(data))
-			resp.Value = &types.BlockStoreErrorResponse{ErrorText: types.String(err.Error())}
+			log.Warnf("Received malformed request: 0x%v", hex.EncodeToString(data))
+			eResp := rpc.ErrorResponse{Message: err.Error()}
+			rErr := block_store.BlockStoreResponse_Error{Error: &eResp}
+			resp.Response = &rErr
 		} else {
-			log.Debugf("Received RPC request: %s", string(data))
+			log.Debugf("Received RPC request: 0x%v", hex.EncodeToString(data))
 			resp = handler.HandleRequest(req)
 		}
 
 		var outputBytes []byte
-		outputBytes, err = json.Marshal(&resp)
+		outputBytes, err = proto.Marshal(resp)
 
 		return outputBytes, err
 	})
 
 	requestHandler.SetBroadcastHandler(blockAccept, func(topic string, data []byte) {
-		sub := types.NewBlockAccepted()
-		err := json.Unmarshal(data, sub)
+		sub := broadcast.BlockAccepted{}
+		err := proto.Unmarshal(data, &sub)
 		if err != nil {
 			log.Warnf("Unable to parse koinos.block.accept broadcast: %s", string(data))
 			return
 		}
 
-		log.Infof("Received broadcasted block - %s", util.BlockString(&sub.Block))
+		log.Infof("Received broadcasted block - %s", util.BlockString(sub.Block))
 
-		req := types.BlockStoreRequest{
-			Value: &types.AddBlockRequest{
-				BlockToAdd: types.BlockItem{
-					Block:        types.OptionalBlock{Value: &sub.Block},
-					BlockReceipt: *types.NewOptionalBlockReceipt(),
-				},
-			},
+		iReq := block_store.AddBlockRequest{
+			BlockToAdd: sub.GetBlock(),
 		}
+		bsReq := block_store.BlockStoreRequest_AddBlock{AddBlock: &iReq}
+		req := block_store.BlockStoreRequest{Request: &bsReq}
+
 		_ = handler.HandleRequest(&req)
 
-		err = handler.UpdateHighestBlock(&types.BlockTopology{
-			ID:       sub.Block.ID,
-			Height:   sub.Block.Header.Height,
-			Previous: sub.Block.Header.Previous,
+		err = handler.UpdateHighestBlock(&koinos.BlockTopology{
+			Id:       sub.GetBlock().GetId(),
+			Height:   sub.GetBlock().GetHeader().GetHeight(),
+			Previous: sub.GetBlock().GetHeader().GetPrevious(),
 		})
 		if err != nil {
 			log.Warn("Error while updating highest block")

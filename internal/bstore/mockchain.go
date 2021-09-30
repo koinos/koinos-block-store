@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"sort"
 
-	types "github.com/koinos/koinos-types-golang"
+	"github.com/koinos/koinos-proto-golang/koinos/protocol"
+	"github.com/multiformats/go-multihash"
+	"google.golang.org/protobuf/proto"
 )
 
 // MockBlock is similar to a Block.
@@ -27,13 +29,13 @@ type MockBlock struct {
 	Num      uint64
 	Previous uint64
 
-	ActiveData    types.OpaqueActiveBlockData
-	PassiveData   types.OpaquePassiveBlockData
-	SignatureData types.VariableBlob
+	ActiveData    []byte
+	PassiveData   []byte
+	SignatureData []byte
 
-	Transactions types.VectorTransaction
+	Transactions []*protocol.Transaction
 
-	Receipt types.VariableBlob
+	Receipt []byte
 }
 
 // MockBlockTree tracks mock blocks by number.
@@ -45,10 +47,10 @@ type MockBlockTree struct {
 // BlockTree tracks blocks by number.
 type BlockTree struct {
 	// Block indexed by number
-	ByNum map[uint64]*types.Block
+	ByNum map[uint64]*protocol.Block
 
 	// Receipt indexed by number
-	ReceiptByNum map[uint64]types.VariableBlob
+	ReceiptByNum map[uint64][]byte
 
 	// MockBlock by number
 	Numbers []uint64
@@ -58,38 +60,33 @@ type BlockTree struct {
 func NewMockBlock() *MockBlock {
 	mb := MockBlock{
 		Previous:      0,
-		ActiveData:    *types.NewOpaqueActiveBlockData(),
-		PassiveData:   *types.NewOpaquePassiveBlockData(),
-		SignatureData: *types.NewVariableBlob(),
+		ActiveData:    []byte{},
+		PassiveData:   []byte{},
+		SignatureData: make([]byte, 0),
 
-		Transactions: *types.NewVectorTransaction(),
+		Transactions: make([]*protocol.Transaction, 0),
 
-		Receipt: *types.NewVariableBlob(),
+		Receipt: make([]byte, 0),
 	}
 	return &mb
 }
 
 // GetEmptyBlockID computes the zero block ID (i.e. Previous of first block applied to genesis state)
-func GetEmptyBlockID() types.Multihash {
-	vb := types.VariableBlob(make([]byte, 32))
-	return types.Multihash{ID: 0x12, Digest: vb}
+func GetEmptyBlockID() []byte {
+	vb := make([]byte, 32)
+	mHashBuf, _ := multihash.EncodeName(vb, "sha2-256")
+	return mHashBuf
 }
 
 // ComputeBlockID computes the block ID according to cryptographic constraints
-func ComputeBlockID(block *types.Block) types.Multihash {
-	vbHeader := types.NewVariableBlob()
-	vbHeader = block.Header.Serialize(vbHeader)
-	vbActive := types.NewVariableBlob()
-	vbActive = block.ActiveData.Serialize(vbActive)
+func ComputeBlockID(block *protocol.Block) []byte {
+	sHeader, _ := proto.Marshal(block.GetHeader())
+	sDataToHash := append(sHeader, block.GetActive()...)
 
-	vbDataToHash := types.NewVariableBlob()
-	vbDataToHash = vbHeader.Serialize(vbDataToHash)
-	vbDataToHash = vbActive.Serialize(vbDataToHash)
+	hash := sha256.Sum256(sDataToHash)
 
-	hash := sha256.Sum256(*vbDataToHash)
-
-	vbHash := types.VariableBlob(hash[:])
-	return types.Multihash{ID: 0x12, Digest: vbHash}
+	data, _ := multihash.EncodeName(hash[:], "sha256")
+	return data
 }
 
 // ToBlockTree converts a MockBlockTree to a BlockTree
@@ -102,34 +99,34 @@ func ToBlockTree(mbt *MockBlockTree) *BlockTree {
 	}
 	sort.Slice(nums, func(i, j int) bool { return nums[i] < nums[j] })
 	bt := BlockTree{
-		ByNum:        make(map[uint64]*types.Block),
-		ReceiptByNum: make(map[uint64]types.VariableBlob),
+		ByNum:        make(map[uint64]*protocol.Block),
+		ReceiptByNum: make(map[uint64][]byte),
 	}
 	for i = 0; i < len(nums); i++ {
 		num := nums[i]
 		mb := mbt.ByNum[num]
-		b := types.NewBlock()
+		b := protocol.Block{Header: &protocol.BlockHeader{}}
 		if mb.Previous == 0 {
 			b.Header.Previous = GetEmptyBlockID()
 			b.Header.Height = 1
 		} else {
 			prevBlock := bt.ByNum[mb.Previous]
-			b.Header.Previous = prevBlock.ID
+			b.Header.Previous = prevBlock.GetId()
 			b.Header.Height = prevBlock.Header.Height + 1
 		}
 
-		b.Header.Timestamp = types.TimestampType(b.Header.Height)
+		b.Header.Timestamp = b.GetHeader().GetHeight()
 		// TODO: Implement cryptographic constraints on active, passive, signature, transactions
-		b.ActiveData = mb.ActiveData
-		b.PassiveData = mb.PassiveData
+		b.Active = mb.ActiveData
+		b.Passive = mb.PassiveData
 		b.SignatureData = mb.SignatureData
-		b.Transactions = make([]types.Transaction, 0)
+		b.Transactions = make([]*protocol.Transaction, 0)
 
-		b.ID = ComputeBlockID(b)
+		b.Id = ComputeBlockID(&b)
 		//id, _ := json.Marshal(b.ID)
 		//previd, _ := json.Marshal(b.Header.Previous)
 		//fmt.Printf("Previous of %s is %s\n", id, previd)
-		bt.ByNum[num] = b
+		bt.ByNum[num] = &b
 		bt.ReceiptByNum[num] = mb.Receipt
 	}
 	bt.Numbers = nums

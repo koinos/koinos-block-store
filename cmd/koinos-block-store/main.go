@@ -132,7 +132,7 @@ func main() {
 			return
 		}
 
-		log.Infof("Received broadcasted block - %s", util.BlockString(sub.Block))
+		log.Infof("Received broadcasted block - Height: %d, ID: 0x%s", sub.Block.Header.Height, hex.EncodeToString(sub.Block.Id))
 
 		iReq := block_store.AddBlockRequest{
 			BlockToAdd: sub.GetBlock(),

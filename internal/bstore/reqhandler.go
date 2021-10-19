@@ -515,45 +515,45 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 	response := block_store.BlockStoreResponse{}
 	var err error
 
-	if req.Request == nil {
-		return errors.New("expected request was nil")
-	}
-
-	switch v := req.Request.(type) {
-	case *block_store.BlockStoreRequest_GetBlocksById:
-		var result *block_store.GetBlocksByIdResponse
-		result, err = handler.GetBlocksByID(v.GetBlocksById)
-		if err == nil {
-			respVal := block_store.BlockStoreResponse_GetBlocksById{GetBlocksById: result}
-			response.Response = &respVal
+	if req.Request != nil {
+		switch v := req.Request.(type) {
+		case *block_store.BlockStoreRequest_GetBlocksById:
+			var result *block_store.GetBlocksByIdResponse
+			result, err = handler.GetBlocksByID(v.GetBlocksById)
+			if err == nil {
+				respVal := block_store.BlockStoreResponse_GetBlocksById{GetBlocksById: result}
+				response.Response = &respVal
+			}
+			break
+		case *block_store.BlockStoreRequest_GetBlocksByHeight:
+			var result *block_store.GetBlocksByHeightResponse
+			result, err = handler.GetBlocksByHeight(v.GetBlocksByHeight)
+			if err == nil {
+				respVal := block_store.BlockStoreResponse_GetBlocksByHeight{GetBlocksByHeight: result}
+				response.Response = &respVal
+			}
+			break
+		case *block_store.BlockStoreRequest_AddBlock:
+			var result *block_store.AddBlockResponse
+			result, err = handler.AddBlock(v.AddBlock)
+			if err == nil {
+				respVal := block_store.BlockStoreResponse_AddBlock{AddBlock: result}
+				response.Response = &respVal
+			}
+			break
+		case *block_store.BlockStoreRequest_GetHighestBlock:
+			var result *block_store.GetHighestBlockResponse
+			result, err = handler.GetHighestBlock(v.GetHighestBlock)
+			if err == nil {
+				respVal := block_store.BlockStoreResponse_GetHighestBlock{GetHighestBlock: result}
+				response.Response = &respVal
+			}
+			break
+		default:
+			err = errors.New("Unknown request")
 		}
-		break
-	case *block_store.BlockStoreRequest_GetBlocksByHeight:
-		var result *block_store.GetBlocksByHeightResponse
-		result, err = handler.GetBlocksByHeight(v.GetBlocksByHeight)
-		if err == nil {
-			respVal := block_store.BlockStoreResponse_GetBlocksByHeight{GetBlocksByHeight: result}
-			response.Response = &respVal
-		}
-		break
-	case *block_store.BlockStoreRequest_AddBlock:
-		var result *block_store.AddBlockResponse
-		result, err = handler.AddBlock(v.AddBlock)
-		if err == nil {
-			respVal := block_store.BlockStoreResponse_AddBlock{AddBlock: result}
-			response.Response = &respVal
-		}
-		break
-	case *block_store.BlockStoreRequest_GetHighestBlock:
-		var result *block_store.GetHighestBlockResponse
-		result, err = handler.GetHighestBlock(v.GetHighestBlock)
-		if err == nil {
-			respVal := block_store.BlockStoreResponse_GetHighestBlock{GetHighestBlock: result}
-			response.Response = &respVal
-		}
-		break
-	default:
-		err = errors.New("Unknown request")
+	} else {
+		err = errors.New("expected request was nil")
 	}
 
 	if err != nil {

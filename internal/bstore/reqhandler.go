@@ -102,7 +102,15 @@ func (handler *RequestHandler) GetBlocksByID(req *block_store.GetBlocksByIdReque
 
 	result.BlockItems = make([]*block_store.BlockItem, len(req.BlockId))
 
+	if req.BlockId == nil {
+		return nil, errors.New("expected field 'block_id' was nil")
+	}
+
 	for i := range req.GetBlockId() {
+		if req.GetBlockId()[i] == nil {
+			return nil, errors.New("member of field 'block_id' was nil")
+		}
+
 		bytes, err := handler.Backend.Get(req.GetBlockId()[i])
 		if err != nil {
 			continue
@@ -218,7 +226,9 @@ func (handler *RequestHandler) GetBlocksByHeight(req *block_store.GetBlocksByHei
 		return nil, errors.New("ancestor_start_height must be greater than 0")
 	}
 
-	//resp.BlockItems = types.VectorBlockItem(make([]types.BlockItem, req.NumBlocks))
+	if req.HeadBlockId == nil {
+		return nil, errors.New("expected field, 'head_block_id' was nil")
+	}
 
 	headBlockHeight, err := getBlockHeight(handler.Backend, req.HeadBlockId)
 	if err != nil {
@@ -504,6 +514,10 @@ func (handler *RequestHandler) UpdateHighestBlock(topology *koinos.BlockTopology
 func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest) *block_store.BlockStoreResponse {
 	response := block_store.BlockStoreResponse{}
 	var err error
+
+	if req.Request == nil {
+		return errors.New("expected request was nil")
+	}
 
 	switch v := req.Request.(type) {
 	case *block_store.BlockStoreRequest_GetBlocksById:

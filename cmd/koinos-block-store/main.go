@@ -27,6 +27,7 @@ const (
 	amqpOption       = "amqp"
 	instanceIDOption = "instance-id"
 	logLevelOption   = "log-level"
+	resetOption      = "reset"
 )
 
 const (
@@ -34,6 +35,7 @@ const (
 	amqpDefault       = "amqp://guest:guest@localhost:5672/"
 	instanceIDDefault = ""
 	logLevelDefault   = "info"
+	resetDefault      = false
 )
 
 const (
@@ -47,7 +49,7 @@ const (
 func main() {
 	var baseDir = flag.StringP(basedirOption, "d", basedirDefault, "the base directory")
 	var amqp = flag.StringP(amqpOption, "a", "", "AMQP server URL")
-	var reset = flag.BoolP("reset", "r", false, "reset the database")
+	var reset = flag.BoolP(resetOption, "r", resetDefault, "reset the database")
 	instanceID := flag.StringP(instanceIDOption, "i", instanceIDDefault, "The instance ID to identify this service")
 	logLevel := flag.StringP(logLevelOption, "v", logLevelDefault, "The log filtering level (debug, info, warn, error)")
 
@@ -60,6 +62,7 @@ func main() {
 	*amqp = util.GetStringOption(amqpOption, amqpDefault, *amqp, yamlConfig.BlockStore, yamlConfig.Global)
 	*logLevel = util.GetStringOption(logLevelOption, logLevelDefault, *logLevel, yamlConfig.BlockStore, yamlConfig.Global)
 	*instanceID = util.GetStringOption(instanceIDOption, util.GenerateBase58ID(5), *instanceID, yamlConfig.BlockStore, yamlConfig.Global)
+	*reset = util.GetBoolOption(resetOption, resetDefault, *reset, yamlConfig.BlockStore, yamlConfig.Global)
 
 	appID := fmt.Sprintf("%s.%s", appName, *instanceID)
 

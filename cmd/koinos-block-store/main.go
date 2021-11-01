@@ -70,7 +70,8 @@ func main() {
 	logFilename := path.Join(util.GetAppDir(*baseDir, appName), logDir, "block_store.log")
 	err := log.InitLogger(*logLevel, false, logFilename, appID)
 	if err != nil {
-		panic(fmt.Sprintf("Invalid log-level: %s. Please choose one of: debug, info, warn, error", *logLevel))
+		fmt.Sprintf("Invalid log-level: %s. Please choose one of: debug, info, warn, error", *logLevel)
+		os.Exit(1)
 	}
 
 	// Costruct the db directory and ensure it exists
@@ -80,14 +81,20 @@ func main() {
 
 	var opts = badger.DefaultOptions(dbDir)
 	opts.Logger = bstore.KoinosBadgerLogger{}
-	var backend = bstore.NewBadgerBackend(opts)
+	backend, err := bstore.NewBadgerBackend(opts)
+
+	if err != nil {
+		log.Errorf("Could not open database, %s", err.Error())
+		os.Exit(1)
+	}
 
 	// Reset backend if requested
 	if *reset {
 		log.Info("Resetting database")
 		err := backend.Reset()
 		if err != nil {
-			panic(fmt.Sprintf("Error resetting database: %s\n", err.Error()))
+			log.Errorf("Could not reset database, %s", err.Error())
+			os.Exit(1)
 		}
 	}
 

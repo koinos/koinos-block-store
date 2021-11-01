@@ -37,7 +37,7 @@ func NewBackend(backendType int) BlockStoreBackend {
 			panic("unable to create temp directory")
 		}
 		opts := badger.DefaultOptions(dirname)
-		backend = NewBadgerBackend(opts)
+		backend, _ = NewBadgerBackend(opts)
 		break
 	default:
 		panic("unknown backend type")

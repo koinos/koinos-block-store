@@ -100,18 +100,18 @@ func (e *BlockHeightMismatch) Error() string {
 func (handler *RequestHandler) GetBlocksByID(req *block_store.GetBlocksByIdRequest) (*block_store.GetBlocksByIdResponse, error) {
 	result := block_store.GetBlocksByIdResponse{}
 
-	result.BlockItems = make([]*block_store.BlockItem, len(req.BlockId))
+	result.BlockItems = make([]*block_store.BlockItem, len(req.BlockIds))
 
-	if req.BlockId == nil {
+	if req.BlockIds == nil {
 		return nil, errors.New("expected field 'block_id' was nil")
 	}
 
-	for i := range req.GetBlockId() {
-		if req.GetBlockId()[i] == nil {
+	for i := range req.GetBlockIds() {
+		if req.GetBlockIds()[i] == nil {
 			return nil, errors.New("member of field 'block_id' was nil")
 		}
 
-		bytes, err := handler.Backend.Get(req.GetBlockId()[i])
+		bytes, err := handler.Backend.Get(req.GetBlockIds()[i])
 		if err != nil {
 			continue
 		}

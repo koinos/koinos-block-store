@@ -114,9 +114,7 @@ func ToBlockTree(mbt *MockBlockTree) *BlockTree {
 		}
 
 		b.Header.Timestamp = b.GetHeader().GetHeight()
-		// TODO: Implement cryptographic constraints on active, passive, signature, transactions
-		// b.Active = mb.ActiveData
-		// b.Passive = mb.PassiveData
+		// TODO: Implement cryptographic constraints on signature and transactions
 		b.Signature = mb.SignatureData
 		b.Transactions = make([]*protocol.Transaction, 0)
 

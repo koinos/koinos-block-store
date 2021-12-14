@@ -450,9 +450,9 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 
 	getBlocksByID := func(ids []uint64, returnBlock bool, returnReceipt bool, errText string) []*block_store.BlockItem {
 		req := block_store.GetBlocksByIdRequest{}
-		req.BlockId = make([][]byte, len(ids))
+		req.BlockIds = make([][]byte, len(ids))
 		for i := 0; i < len(ids); i++ {
-			req.BlockId[i] = getID(ids[i])
+			req.BlockIds[i] = getID(ids[i])
 		}
 		req.ReturnBlock = returnBlock
 		req.ReturnReceipt = returnReceipt

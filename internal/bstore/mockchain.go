@@ -60,8 +60,6 @@ type BlockTree struct {
 func NewMockBlock() *MockBlock {
 	mb := MockBlock{
 		Previous:      0,
-		ActiveData:    []byte{},
-		PassiveData:   []byte{},
 		SignatureData: make([]byte, 0),
 
 		Transactions: make([]*protocol.Transaction, 0),
@@ -81,7 +79,7 @@ func GetEmptyBlockID() []byte {
 // ComputeBlockID computes the block ID according to cryptographic constraints
 func ComputeBlockID(block *protocol.Block) []byte {
 	sHeader, _ := proto.Marshal(block.GetHeader())
-	sDataToHash := append(sHeader, block.GetActive()...)
+	sDataToHash := append(sHeader)
 
 	hash := sha256.Sum256(sDataToHash)
 
@@ -117,9 +115,9 @@ func ToBlockTree(mbt *MockBlockTree) *BlockTree {
 
 		b.Header.Timestamp = b.GetHeader().GetHeight()
 		// TODO: Implement cryptographic constraints on active, passive, signature, transactions
-		b.Active = mb.ActiveData
-		b.Passive = mb.PassiveData
-		b.SignatureData = mb.SignatureData
+		// b.Active = mb.ActiveData
+		// b.Passive = mb.PassiveData
+		b.Signature = mb.SignatureData
 		b.Transactions = make([]*protocol.Transaction, 0)
 
 		b.Id = ComputeBlockID(&b)

@@ -8,7 +8,6 @@ import (
 	base58 "github.com/btcsuite/btcutil/base58"
 	log "github.com/koinos/koinos-log-golang"
 	"github.com/koinos/koinos-proto-golang/koinos"
-	"github.com/koinos/koinos-proto-golang/koinos/protocol"
 	"github.com/koinos/koinos-proto-golang/koinos/rpc"
 	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
 	"google.golang.org/protobuf/proto"
@@ -129,8 +128,7 @@ func (handler *RequestHandler) GetBlocksByID(req *block_store.GetBlocksByIdReque
 		}
 
 		if req.GetReturnReceipt() {
-			// TODO: Internally, Block Receipt needs to change
-			// result.BlockItems[i].BlockReceipt = record.BlockReceipt
+			result.BlockItems[i].Receipt = record.Receipt
 		}
 	}
 
@@ -193,8 +191,7 @@ func (handler *RequestHandler) fillBlocks(
 			blockItems[k].Block = record.Block
 		}
 		if returnReceipt {
-			// TODO: Internally, Block Receipt needs to change
-			// blockItems[k].BlockReceipt = record.BlockReceipt
+			blockItems[k].Receipt = record.Receipt
 		}
 
 		if len(record.PreviousBlockIds) < 1 {
@@ -216,10 +213,6 @@ func (handler *RequestHandler) GetBlocksByHeight(req *block_store.GetBlocksByHei
 
 	if req.NumBlocks <= 0 {
 		return &resp, nil
-	}
-
-	if req.ReturnReceipt {
-		return nil, &NotImplemented{}
 	}
 
 	if req.AncestorStartHeight == 0 {
@@ -419,10 +412,8 @@ func (handler *RequestHandler) AddBlock(req *block_store.AddBlockRequest) (*bloc
 	record.BlockId = block.GetId()
 	record.BlockHeight = block.GetHeader().GetHeight()
 	record.Block = block
-	// TODO: Internally, Block Receipt needs to change
-	// record.BlockReceipt = req.BlockToAdd.BlockReceipt
 
-	record.Receipt = &protocol.BlockReceipt{}
+	record.Receipt = req.GetReceiptToAdd()
 
 	if block.Header.Height > 1 {
 		previousHeights := getPreviousHeights(block.GetHeader().GetHeight())

@@ -145,7 +145,8 @@ func main() {
 		log.Infof("Received broadcasted block - Height: %d, ID: 0x%s", sub.Block.Header.Height, hex.EncodeToString(sub.Block.Id))
 
 		iReq := block_store.AddBlockRequest{
-			BlockToAdd: sub.GetBlock(),
+			BlockToAdd:   sub.GetBlock(),
+			ReceiptToAdd: sub.GetReceipt(),
 		}
 		bsReq := block_store.BlockStoreRequest_AddBlock{AddBlock: &iReq}
 		req := block_store.BlockStoreRequest{Request: &bsReq}

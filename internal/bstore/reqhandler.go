@@ -128,8 +128,7 @@ func (handler *RequestHandler) GetBlocksByID(req *block_store.GetBlocksByIdReque
 		}
 
 		if req.GetReturnReceipt() {
-			// TODO: Internally, Block Receipt needs to change
-			// result.BlockItems[i].BlockReceipt = record.BlockReceipt
+			result.BlockItems[i].Receipt = record.Receipt
 		}
 	}
 

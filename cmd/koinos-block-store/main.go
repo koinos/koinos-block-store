@@ -142,7 +142,11 @@ func main() {
 			return
 		}
 
-		log.Infof("Received broadcasted block - Height: %d, ID: 0x%s", sub.Block.Header.Height, hex.EncodeToString(sub.Block.Id))
+		if sub.GetLive() {
+			log.Infof("Received broadcasted block - Height: %d, ID: 0x%s", sub.Block.Header.Height, hex.EncodeToString(sub.Block.Id))
+		} else if sub.GetBlock().GetHeader().GetHeight()%1000 == 0 {
+			log.Infof("Sync block progress - Height: %d, ID: 0x%s", sub.Block.Header.Height, hex.EncodeToString(sub.Block.Id))
+		}
 
 		iReq := block_store.AddBlockRequest{
 			BlockToAdd:   sub.GetBlock(),

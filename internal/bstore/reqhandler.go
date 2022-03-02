@@ -52,7 +52,7 @@ type BlockNotPresent struct {
 }
 
 func (e *BlockNotPresent) Error() string {
-	return fmt.Sprintf("Block not present - ID: 0x%v", hex.Encode(e.blockID))
+	return fmt.Sprintf("Block not present - ID: 0x%v", hex.EncodeToString(e.blockID))
 }
 
 // DeserializeError is an error type for errors during deserialization

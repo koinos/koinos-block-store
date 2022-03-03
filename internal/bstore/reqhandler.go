@@ -1,11 +1,11 @@
 package bstore
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/bits"
 
-	base58 "github.com/btcsuite/btcutil/base58"
 	log "github.com/koinos/koinos-log-golang"
 	"github.com/koinos/koinos-proto-golang/koinos"
 	"github.com/koinos/koinos-proto-golang/koinos/rpc"
@@ -52,7 +52,7 @@ type BlockNotPresent struct {
 }
 
 func (e *BlockNotPresent) Error() string {
-	return fmt.Sprintf("Block not present - ID: %v", base58.Encode(e.blockID))
+	return fmt.Sprintf("Block not present - ID: 0x%v", hex.EncodeToString(e.blockID))
 }
 
 // DeserializeError is an error type for errors during deserialization

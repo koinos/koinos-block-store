@@ -79,7 +79,7 @@ func GetEmptyBlockID() []byte {
 // ComputeBlockID computes the block ID according to cryptographic constraints
 func ComputeBlockID(block *protocol.Block) []byte {
 	sHeader, _ := proto.Marshal(block.GetHeader())
-	sDataToHash := append(sHeader)
+	sDataToHash := sHeader
 
 	hash := sha256.Sum256(sDataToHash)
 

@@ -8,7 +8,7 @@ import (
 	"path"
 	"syscall"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v3"
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	log "github.com/koinos/koinos-log-golang"
 	koinosmq "github.com/koinos/koinos-mq-golang"

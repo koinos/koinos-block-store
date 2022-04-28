@@ -11,7 +11,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v3"
 	"github.com/multiformats/go-multihash"
 
 	log "github.com/koinos/koinos-log-golang"

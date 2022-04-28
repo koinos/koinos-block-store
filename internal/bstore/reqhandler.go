@@ -515,7 +515,6 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 				respVal := block_store.BlockStoreResponse_GetBlocksById{GetBlocksById: result}
 				response.Response = &respVal
 			}
-			break
 		case *block_store.BlockStoreRequest_GetBlocksByHeight:
 			var result *block_store.GetBlocksByHeightResponse
 			result, err = handler.GetBlocksByHeight(v.GetBlocksByHeight)
@@ -523,7 +522,6 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 				respVal := block_store.BlockStoreResponse_GetBlocksByHeight{GetBlocksByHeight: result}
 				response.Response = &respVal
 			}
-			break
 		case *block_store.BlockStoreRequest_AddBlock:
 			var result *block_store.AddBlockResponse
 			result, err = handler.AddBlock(v.AddBlock)
@@ -531,7 +529,6 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 				respVal := block_store.BlockStoreResponse_AddBlock{AddBlock: result}
 				response.Response = &respVal
 			}
-			break
 		case *block_store.BlockStoreRequest_GetHighestBlock:
 			var result *block_store.GetHighestBlockResponse
 			result, err = handler.GetHighestBlock(v.GetHighestBlock)
@@ -539,7 +536,6 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 				respVal := block_store.BlockStoreResponse_GetHighestBlock{GetHighestBlock: result}
 				response.Response = &respVal
 			}
-			break
 		default:
 			err = errors.New("Unknown request")
 		}

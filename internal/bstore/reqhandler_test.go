@@ -11,9 +11,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v3"
 	"github.com/multiformats/go-multihash"
 
+	log "github.com/koinos/koinos-log-golang"
 	"github.com/koinos/koinos-proto-golang/koinos"
 	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
 )
@@ -30,7 +31,6 @@ func NewBackend(backendType int) BlockStoreBackend {
 	switch backendType {
 	case MapBackendType:
 		backend = NewMapBackend()
-		break
 	case BadgerBackendType:
 		dirname, err := ioutil.TempDir(os.TempDir(), "bstore-test-*")
 		if err != nil {
@@ -38,7 +38,6 @@ func NewBackend(backendType int) BlockStoreBackend {
 		}
 		opts := badger.DefaultOptions(dirname)
 		backend, _ = NewBadgerBackend(opts)
-		break
 	default:
 		panic("unknown backend type")
 	}
@@ -51,7 +50,6 @@ func CloseBackend(b interface{}) {
 		break
 	case *BadgerBackend:
 		t.Close()
-		break
 	default:
 		panic("unknown backend type")
 	}
@@ -119,10 +117,10 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, bt *BlockTree) {
 
 	for _, num := range bt.Numbers {
 
-		addReq := block_store.AddBlockRequest{BlockToAdd: bt.ByNum[num]}
+		addReq := &block_store.AddBlockRequest{BlockToAdd: bt.ByNum[num]}
 
-		iReq := block_store.BlockStoreRequest_AddBlock{AddBlock: &addReq}
-		genericReq := block_store.BlockStoreRequest{Request: &iReq}
+		iReq := block_store.BlockStoreRequest_AddBlock{AddBlock: addReq}
+		genericReq := &block_store.BlockStoreRequest{Request: &iReq}
 
 		_, err := json.Marshal(genericReq)
 		if err != nil {
@@ -130,14 +128,14 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, bt *BlockTree) {
 		}
 		// fmt.Printf("Request: %s\n", j)
 
-		result := handler.HandleRequest(&genericReq)
+		result := handler.HandleRequest(genericReq)
 		if result == nil {
 			t.Error("Got nil result")
 		}
 
 		errval, ok := result.GetResponse().(*block_store.BlockStoreResponse_Error)
 		if ok {
-			fmt.Printf("%v\n", addReq)
+			log.Debugf("%v\n", addReq)
 			t.Error("Got error adding block:", errval.Error.Message)
 		}
 
@@ -285,14 +283,14 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 			getReq.ReturnReceipt = false
 
 			iReq := block_store.BlockStoreRequest_GetBlocksByHeight{GetBlocksByHeight: &getReq}
-			genericReq := block_store.BlockStoreRequest{Request: &iReq}
+			genericReq := &block_store.BlockStoreRequest{Request: &iReq}
 
 			_, err := json.Marshal(genericReq)
 			if err != nil {
 				t.Error("Could not marshal JSON", err)
 			}
 
-			result := handler.HandleRequest(&genericReq)
+			result := handler.HandleRequest(genericReq)
 			if result == nil {
 				t.Error("Got nil result")
 			}
@@ -311,7 +309,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 				t.Errorf("Unexpected ancestor height:  Got %d, expected %d", resp.GetBlocksByHeight.GetBlockItems()[0].BlockHeight, height)
 			}
 
-			if bytes.Compare(resp.GetBlocksByHeight.GetBlockItems()[0].GetBlockId(), expectedAncestorID) != 0 {
+			if !bytes.Equal(resp.GetBlocksByHeight.GetBlockItems()[0].GetBlockId(), expectedAncestorID) {
 				t.Error("Unexpected ancestor block ID")
 			}
 		}
@@ -331,9 +329,9 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 		getReq.AncestorStartHeight = height + 1
 
 		iReq := block_store.BlockStoreRequest_GetBlocksByHeight{GetBlocksByHeight: &getReq}
-		genericReq := block_store.BlockStoreRequest{Request: &iReq}
+		genericReq := &block_store.BlockStoreRequest{Request: &iReq}
 
-		result := handler.HandleRequest(&genericReq)
+		result := handler.HandleRequest(genericReq)
 		if result == nil {
 			t.Error("Got nil result")
 		}
@@ -394,7 +392,7 @@ func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 						t.Error("Unexpected block height in response")
 					}
 					expectedBlockID := bt.ByNum[blockSeq[checkIndex]].GetId()
-					if bytes.Compare(resp.GetBlocksByHeight.GetBlockItems()[checkIndex].GetBlockId(), expectedBlockID) != 0 {
+					if !bytes.Equal(resp.GetBlocksByHeight.GetBlockItems()[checkIndex].GetBlockId(), expectedBlockID) {
 						t.Error("Unexpected ancestor block ID")
 					}
 				}
@@ -534,7 +532,7 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 		for j := 0; j < len(testCases[i]); j++ {
 			if testCases[i][j] < 900 {
 				expectedBlockID := getID(testCases[i][j])
-				if bytes.Compare(result[j].GetBlockId(), expectedBlockID) != 0 {
+				if !bytes.Equal(result[j].GetBlockId(), expectedBlockID) {
 					fmt.Printf("%d %d %v %v\n", i, j, expectedBlockID, result[j].GetBlockId())
 					t.Error("Unexpected block ID")
 					return
@@ -641,7 +639,9 @@ func TestGetHighestBlock(t *testing.T) {
 			t.Error("Unexpected error")
 		}
 
-		handler.UpdateHighestBlock(&topology)
+		if err := handler.UpdateHighestBlock(&topology); err != nil {
+			t.Error(err)
+		}
 
 		iReq = block_store.GetHighestBlockRequest{}
 		ghbReq = block_store.BlockStoreRequest_GetHighestBlock{GetHighestBlock: &iReq}
@@ -672,7 +672,9 @@ func TestGetHighestBlock(t *testing.T) {
 		lowerHeight := uint64(1)
 
 		lowerTopology := koinos.BlockTopology{Id: lowerBlockID, Previous: lowerPreviousID, Height: lowerHeight}
-		handler.UpdateHighestBlock(&lowerTopology)
+		if err := handler.UpdateHighestBlock(&lowerTopology); err != nil {
+			t.Error(err)
+		}
 
 		iReq = block_store.GetHighestBlockRequest{}
 		ghbReq = block_store.BlockStoreRequest_GetHighestBlock{GetHighestBlock: &iReq}
@@ -703,7 +705,9 @@ func TestGetHighestBlock(t *testing.T) {
 		higherHeight := uint64(3)
 
 		higherTopology := koinos.BlockTopology{Id: higherBlockID, Previous: higherPreviousID, Height: higherHeight}
-		handler.UpdateHighestBlock(&higherTopology)
+		if err := handler.UpdateHighestBlock(&higherTopology); err != nil {
+			t.Error(err)
+		}
 
 		iReq = block_store.GetHighestBlockRequest{}
 		ghbReq = block_store.BlockStoreRequest_GetHighestBlock{GetHighestBlock: &iReq}

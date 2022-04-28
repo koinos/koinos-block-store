@@ -8,7 +8,7 @@ import (
 	"path"
 	"syscall"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v3"
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	log "github.com/koinos/koinos-log-golang"
 	koinosmq "github.com/koinos/koinos-mq-golang"
@@ -39,11 +39,10 @@ const (
 )
 
 const (
-	blockstoreRPC     = "block_store"
-	blockAccept       = "koinos.block.accept"
-	blockIrreversible = "koinos.block.irreversible"
-	appName           = "block_store"
-	logDir            = "logs"
+	blockstoreRPC = "block_store"
+	blockAccept   = "koinos.block.accept"
+	appName       = "block_store"
+	logDir        = "logs"
 )
 
 func main() {
@@ -70,7 +69,7 @@ func main() {
 	logFilename := path.Join(util.GetAppDir(*baseDir, appName), logDir, "block_store.log")
 	err := log.InitLogger(*logLevel, false, logFilename, appID)
 	if err != nil {
-		fmt.Sprintf("Invalid log-level: %s. Please choose one of: debug, info, warn, error", *logLevel)
+		fmt.Printf("Invalid log-level: %s. Please choose one of: debug, info, warn, error", *logLevel)
 		os.Exit(1)
 	}
 
@@ -104,12 +103,13 @@ func main() {
 
 	handler := bstore.RequestHandler{Backend: backend}
 
-	_, err = handler.GetHighestBlock(&block_store.GetHighestBlockRequest{})
-	if err != nil {
+	if _, err = handler.GetHighestBlock(&block_store.GetHighestBlockRequest{}); err != nil {
 		if _, ok := err.(*bstore.UnexpectedHeightError); ok {
 			mh, _ := multihash.EncodeName(make([]byte, 32), "sha2-256")
 			bt := koinos.BlockTopology{Id: mh, Height: 0}
-			handler.UpdateHighestBlock(&bt)
+			if err := handler.UpdateHighestBlock(&bt); err != nil {
+				log.Warnf("Unable to update highest block: %s", err)
+			}
 		}
 	}
 

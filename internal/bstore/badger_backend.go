@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v3"
 	"go.uber.org/zap"
 )
 

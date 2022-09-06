@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/bits"
+	"sync"
 
 	log "github.com/koinos/koinos-log-golang"
 	"github.com/koinos/koinos-proto-golang/koinos"
@@ -20,6 +21,8 @@ const (
 // RequestHandler contains a backend object and handles requests
 type RequestHandler struct {
 	Backend BlockStoreBackend
+
+	lock sync.RWMutex
 }
 
 // ReservedReqError is an error type that is thrown when a reserved request is passed to the request handler
@@ -510,6 +513,9 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 		switch v := req.Request.(type) {
 		case *block_store.BlockStoreRequest_GetBlocksById:
 			var result *block_store.GetBlocksByIdResponse
+			handler.lock.RLock()
+			defer handler.lock.RUnlock()
+
 			result, err = handler.GetBlocksByID(v.GetBlocksById)
 			if err == nil {
 				respVal := block_store.BlockStoreResponse_GetBlocksById{GetBlocksById: result}
@@ -517,6 +523,9 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 			}
 		case *block_store.BlockStoreRequest_GetBlocksByHeight:
 			var result *block_store.GetBlocksByHeightResponse
+			handler.lock.RLock()
+			defer handler.lock.RUnlock()
+
 			result, err = handler.GetBlocksByHeight(v.GetBlocksByHeight)
 			if err == nil {
 				respVal := block_store.BlockStoreResponse_GetBlocksByHeight{GetBlocksByHeight: result}
@@ -524,6 +533,9 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 			}
 		case *block_store.BlockStoreRequest_AddBlock:
 			var result *block_store.AddBlockResponse
+			handler.lock.Lock()
+			defer handler.lock.Unlock()
+
 			result, err = handler.AddBlock(v.AddBlock)
 			if err == nil {
 				respVal := block_store.BlockStoreResponse_AddBlock{AddBlock: result}
@@ -531,6 +543,9 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 			}
 		case *block_store.BlockStoreRequest_GetHighestBlock:
 			var result *block_store.GetHighestBlockResponse
+			handler.lock.RLock()
+			defer handler.lock.RUnlock()
+
 			result, err = handler.GetHighestBlock(v.GetHighestBlock)
 			if err == nil {
 				respVal := block_store.BlockStoreResponse_GetHighestBlock{GetHighestBlock: result}

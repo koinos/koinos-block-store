@@ -167,7 +167,7 @@ func BuildTestTree(t *testing.T, handler *RequestHandler, bt *BlockTree) {
 
 func addBlocksTestImpl(t *testing.T, backendType int, addZeroBlock bool) {
 	b := NewBackend(backendType)
-	handler := RequestHandler{b}
+	handler := RequestHandler{Backend: b}
 
 	// A compact notation of the tree of forks we want to create for the test
 	//
@@ -431,7 +431,7 @@ func testGetBlocksByIDImpl(t *testing.T, returnBlock bool, returnReceipt bool) {
 	}
 
 	b := NewMapBackend()
-	handler := RequestHandler{b}
+	handler := RequestHandler{Backend: b}
 	mbt := NewMockBlockTree(tree)
 	for _, mb := range mbt.ByNum {
 		mb.Receipt = []byte(fmt.Sprintf("Receipt for block %d", mb.Num))
@@ -622,7 +622,7 @@ func TestGetHighestBlock(t *testing.T) {
 		topology := koinos.BlockTopology{Id: blockID, Previous: previousID, Height: height}
 
 		b := NewBackend(bType)
-		handler := RequestHandler{b}
+		handler := RequestHandler{Backend: b}
 
 		iReq := block_store.GetHighestBlockRequest{}
 		ghbReq := block_store.BlockStoreRequest_GetHighestBlock{GetHighestBlock: &iReq}

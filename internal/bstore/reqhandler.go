@@ -452,6 +452,16 @@ func (handler *RequestHandler) AddBlock(req *block_store.AddBlockRequest) (*bloc
 		return nil, err
 	}
 
+	err = handler.UpdateHighestBlock(&koinos.BlockTopology{
+		Id:       block.GetId(),
+		Height:   block.GetHeader().GetHeight(),
+		Previous: block.GetHeader().GetPrevious(),
+	})
+	if err != nil {
+		log.Warn("Error while updating highest block")
+		return nil, err
+	}
+
 	resp := block_store.AddBlockResponse{}
 	return &resp, nil
 }

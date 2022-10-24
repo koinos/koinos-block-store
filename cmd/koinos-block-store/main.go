@@ -118,7 +118,7 @@ func main() {
 		}
 	}
 
-	requestHandler := koinosmq.NewRequestHandler(*amqp, uint(*jobs))
+	requestHandler := koinosmq.NewRequestHandler(*amqp, uint(*jobs), koinosmq.ExponentialBackoff)
 
 	handler := bstore.RequestHandler{Backend: backend}
 

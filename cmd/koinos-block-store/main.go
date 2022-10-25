@@ -8,7 +8,9 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
+	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/koinos/koinos-block-store/internal/bstore"
@@ -153,6 +155,8 @@ func main() {
 		return outputBytes, err
 	})
 
+	var recentBlocks uint32
+
 	requestHandler.SetBroadcastHandler(blockAccept, func(topic string, data []byte) {
 		sub := broadcast.BlockAccepted{}
 		err := proto.Unmarshal(data, &sub)
@@ -162,10 +166,12 @@ func main() {
 		}
 
 		if sub.GetLive() {
-			log.Infof("Received broadcasted block - Height: %d, ID: 0x%s", sub.Block.Header.Height, hex.EncodeToString(sub.Block.Id))
+			log.Debugf("Received broadcasted block - Height: %d, ID: 0x%s", sub.Block.Header.Height, hex.EncodeToString(sub.Block.Id))
 		} else if sub.GetBlock().GetHeader().GetHeight()%1000 == 0 {
 			log.Infof("Sync block progress - Height: %d, ID: 0x%s", sub.Block.Header.Height, hex.EncodeToString(sub.Block.Id))
 		}
+
+		atomic.AddUint32(&recentBlocks, 1)
 
 		iReq := block_store.AddBlockRequest{
 			BlockToAdd:   sub.GetBlock(),
@@ -188,6 +194,21 @@ func main() {
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	requestHandler.Start(ctx)
+
+	go func() {
+		for {
+			select {
+			case <-time.After(60 * time.Second):
+				numBlocks := atomic.SwapUint32(&recentBlocks, 0)
+
+				if numBlocks > 0 {
+					log.Infof("Recently added %v block(s)", numBlocks)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	// Wait for a SIGINT or SIGTERM signal
 	ch := make(chan os.Signal, 1)

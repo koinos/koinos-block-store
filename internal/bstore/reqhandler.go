@@ -406,10 +406,19 @@ func getAncestorIDAtHeight(backend BlockStoreBackend, blockID []byte, height uin
 func (handler *RequestHandler) AddBlock(req *block_store.AddBlockRequest) (*block_store.AddBlockResponse, error) {
 
 	if req.GetBlockToAdd() == nil {
-		return nil, errors.New("Cannot add empty optional block")
+		return nil, errors.New("cannot add empty optional block")
 	}
 
 	block := req.GetBlockToAdd()
+
+	if block.GetId() == nil {
+		return nil, errors.New("block id must not be nil")
+	}
+
+	if block.GetHeader() == nil {
+		return nil, errors.New("block header must not be nil")
+	}
+
 	record := block_store.BlockRecord{}
 
 	record.BlockId = block.GetId()
@@ -418,7 +427,7 @@ func (handler *RequestHandler) AddBlock(req *block_store.AddBlockRequest) (*bloc
 
 	record.Receipt = req.GetReceiptToAdd()
 
-	if block.Header.Height > 1 {
+	if block.GetHeader().GetHeight() > 1 {
 		previousHeights := getPreviousHeights(block.GetHeader().GetHeight())
 
 		record.PreviousBlockIds = make([][]byte, len(previousHeights))

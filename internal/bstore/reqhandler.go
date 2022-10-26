@@ -452,6 +452,16 @@ func (handler *RequestHandler) AddBlock(req *block_store.AddBlockRequest) (*bloc
 		return nil, err
 	}
 
+	err = handler.UpdateHighestBlock(&koinos.BlockTopology{
+		Id:       block.Id,
+		Height:   block.Header.Height,
+		Previous: block.Header.Previous,
+	})
+	if err != nil {
+		_ = handler.Backend.Delete(record.GetBlockId())
+		return nil, err
+	}
+
 	resp := block_store.AddBlockResponse{}
 	return &resp, nil
 }

@@ -8,6 +8,11 @@ type BlockStoreBackend interface {
 	Put(key []byte, value []byte) error
 
 	/**
+	 * Deletes the value at the given key.
+	 */
+	Delete(key []byte) error
+
+	/**
 	 * Get a previously stored value.
 	 *
 	 * If the key is not found, returns (nil, nil).

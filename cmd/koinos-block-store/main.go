@@ -181,15 +181,6 @@ func main() {
 		req := block_store.BlockStoreRequest{Request: &bsReq}
 
 		_ = handler.HandleRequest(&req)
-
-		err = handler.UpdateHighestBlock(&koinos.BlockTopology{
-			Id:       sub.GetBlock().GetId(),
-			Height:   sub.GetBlock().GetHeader().GetHeight(),
-			Previous: sub.GetBlock().GetHeader().GetPrevious(),
-		})
-		if err != nil {
-			log.Warn("Error while updating highest block")
-		}
 	})
 
 	ctx, ctxCancel := context.WithCancel(context.Background())

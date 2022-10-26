@@ -31,17 +31,37 @@ func (backend *BadgerBackend) Reset() error {
 
 // Put backend setter
 func (backend *BadgerBackend) Put(key, value []byte) error {
-	if value == nil {
-		return errors.New("Cannot put a nil value")
+	if key == nil {
+		return errors.New("cannot put a nil key")
 	}
+	if value == nil {
+		return errors.New("cannot put a nil value")
+	}
+
 	return backend.DB.Update(func(txn *badger.Txn) error {
 		return txn.Set(key, value)
+	})
+}
+
+// Delete an item from the database
+func (backend *BadgerBackend) Delete(key []byte) error {
+	if key == nil {
+		return errors.New("cannot remove a nil key")
+	}
+
+	return backend.DB.Update(func(txn *badger.Txn) error {
+		return txn.Delete(key)
 	})
 }
 
 // Get backend getter
 func (backend *BadgerBackend) Get(key []byte) ([]byte, error) {
 	var value []byte = nil
+
+	if key == nil {
+		return value, errors.New("cannot get a nil key")
+	}
+
 	err := backend.DB.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err == badger.ErrKeyNotFound {

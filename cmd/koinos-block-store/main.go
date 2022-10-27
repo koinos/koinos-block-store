@@ -44,10 +44,11 @@ const (
 )
 
 const (
-	blockstoreRPC = "block_store"
-	blockAccept   = "koinos.block.accept"
-	appName       = "block_store"
-	logDir        = "logs"
+	blockstoreRPC  = "block_store"
+	blockAccept    = "koinos.block.accept"
+	appName        = "block_store"
+	logDir         = "logs"
+	maxMessageSize = 536870912
 )
 
 func main() {
@@ -151,6 +152,13 @@ func main() {
 
 		var outputBytes []byte
 		outputBytes, err = proto.Marshal(resp)
+
+		if len(outputBytes) > maxMessageSize {
+			eResp := rpc.ErrorResponse{Message: "Response would exceed maximum MQ message size"}
+			rErr := block_store.BlockStoreResponse_Error{Error: &eResp}
+			resp.Response = &rErr
+			outputBytes, err = proto.Marshal(resp)
+		}
 
 		return outputBytes, err
 	})

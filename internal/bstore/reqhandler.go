@@ -16,6 +16,7 @@ import (
 
 const (
 	highestBlockKey = 0x01
+	maxBlockRequest = 1000
 )
 
 // RequestHandler contains a backend object and handles requests
@@ -100,6 +101,10 @@ func (e *BlockHeightMismatch) Error() string {
 
 // GetBlocksByID returns blocks by block ID
 func (handler *RequestHandler) GetBlocksByID(req *block_store.GetBlocksByIdRequest) (*block_store.GetBlocksByIdResponse, error) {
+	if len(req.BlockIds) > maxBlockRequest {
+		return nil, fmt.Errorf("cannot request more than %v blocks", maxBlockRequest)
+	}
+
 	result := block_store.GetBlocksByIdResponse{}
 
 	result.BlockItems = make([]*block_store.BlockItem, len(req.BlockIds))
@@ -211,6 +216,9 @@ func (handler *RequestHandler) fillBlocks(
 
 // GetBlocksByHeight retuns blocks by block height
 func (handler *RequestHandler) GetBlocksByHeight(req *block_store.GetBlocksByHeightRequest) (*block_store.GetBlocksByHeightResponse, error) {
+	if req.GetNumBlocks() > maxBlockRequest {
+		return nil, fmt.Errorf("cannot request more than %v blocks", maxBlockRequest)
+	}
 
 	resp := block_store.GetBlocksByHeightResponse{}
 
@@ -571,7 +579,7 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 				response.Response = &respVal
 			}
 		default:
-			err = errors.New("Unknown request")
+			err = errors.New("unknown request")
 		}
 	} else {
 		err = errors.New("expected request was nil")

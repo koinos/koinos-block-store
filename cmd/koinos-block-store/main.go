@@ -54,7 +54,7 @@ const (
 
 // Version display values
 const (
-	DisplayAppName = "Koinos P2P"
+	DisplayAppName = "Koinos Block Store"
 	Version        = "v1.0.0"
 )
 

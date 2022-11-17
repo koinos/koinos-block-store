@@ -7,7 +7,8 @@ RUN apk update && \
     apk add \
         gcc \
         musl-dev \
-        linux-headers
+        linux-headers \
+        git
 
 RUN go get ./... && \
     go build -ldflags="-X main.Commit=$(git rev-parse HEAD)" -o koinos_block_store cmd/koinos-block-store/main.go

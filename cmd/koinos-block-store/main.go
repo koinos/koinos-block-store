@@ -27,24 +27,26 @@ import (
 )
 
 const (
-	basedirOption    = "basedir"
-	amqpOption       = "amqp"
-	instanceIDOption = "instance-id"
-	logLevelOption   = "log-level"
-	logDirOption     = "log-dir"
-	logColorOption   = "log-color"
-	resetOption      = "reset"
-	jobsOption       = "jobs"
-	versionOption    = "version"
+	basedirOption     = "basedir"
+	amqpOption        = "amqp"
+	instanceIDOption  = "instance-id"
+	logLevelOption    = "log-level"
+	logDirOption      = "log-dir"
+	logColorOption    = "log-color"
+	logDatetimeOption = "log-datetime"
+	resetOption       = "reset"
+	jobsOption        = "jobs"
+	versionOption     = "version"
 )
 
 const (
-	basedirDefault    = ".koinos"
-	amqpDefault       = "amqp://guest:guest@localhost:5672/"
-	instanceIDDefault = ""
-	logLevelDefault   = "info"
-	logColorDefault   = false
-	resetDefault      = false
+	basedirDefault     = ".koinos"
+	amqpDefault        = "amqp://guest:guest@localhost:5672/"
+	instanceIDDefault  = ""
+	logLevelDefault    = "info"
+	logColorDefault    = true
+	logDatetimeDefault = true
+	resetDefault       = false
 )
 
 const (
@@ -73,6 +75,7 @@ func main() {
 	logLevel := flag.StringP(logLevelOption, "l", logLevelDefault, "The log filtering level (debug, info, warning, error)")
 	logDir := flag.String(logDirOption, "", "The logging directory")
 	logColor := flag.Bool(logColorOption, logColorDefault, "Log color toggle")
+	logDatetime := flag.Bool(logDatetimeOption, logDatetimeDefault, "Log datetime on console toggle")
 	jobs := flag.IntP(jobsOption, "j", jobsDefault, "Number of RPC jobs to run")
 	version := flag.BoolP(versionOption, "v", false, "Print version and exit")
 
@@ -95,6 +98,7 @@ func main() {
 	*logLevel = util.GetStringOption(logLevelOption, logLevelDefault, *logLevel, yamlConfig.BlockStore, yamlConfig.Global)
 	*logDir = util.GetStringOption(logDirOption, *logDir, *logDir, yamlConfig.BlockStore, yamlConfig.Global)
 	*logColor = util.GetBoolOption(logColorOption, logColorDefault, *logColor, yamlConfig.BlockStore, yamlConfig.Global)
+	*logDatetime = util.GetBoolOption(logDatetimeOption, logDatetimeDefault, *logDatetime, yamlConfig.BlockStore, yamlConfig.Global)
 	*instanceID = util.GetStringOption(instanceIDOption, util.GenerateBase58ID(5), *instanceID, yamlConfig.BlockStore, yamlConfig.Global)
 	*reset = util.GetBoolOption(resetOption, resetDefault, *reset, yamlConfig.BlockStore, yamlConfig.Global)
 	*jobs = util.GetIntOption(jobsOption, jobsDefault, *jobs, yamlConfig.BlockStore, yamlConfig.Global)
@@ -103,7 +107,7 @@ func main() {
 		*logDir = path.Join(util.GetAppDir(baseDir, appName), *logDir)
 	}
 
-	err = log.InitLogger(appName, *instanceID, *logLevel, *logDir, *logColor)
+	err = log.InitLogger(appName, *instanceID, *logLevel, *logDir, *logColor, *logDatetime)
 	if err != nil {
 		fmt.Printf("Invalid log-level: %s. Please choose one of: debug, info, warning, error", *logLevel)
 		os.Exit(1)

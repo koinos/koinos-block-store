@@ -51,7 +51,6 @@ const (
 	blockstoreRPC  = "block_store"
 	blockAccept    = "koinos.block.accept"
 	appName        = "block_store"
-	logDir         = "logs"
 	maxMessageSize = 536870912
 )
 

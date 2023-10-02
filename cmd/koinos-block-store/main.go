@@ -57,7 +57,7 @@ const (
 // Version display values
 const (
 	DisplayAppName = "Koinos Block Store"
-	Version        = "v1.0.0"
+	Version        = "v1.1.0"
 )
 
 // Gets filled in by the linker
@@ -70,7 +70,7 @@ func main() {
 	amqp := flag.StringP(amqpOption, "a", "", "AMQP server URL")
 	reset := flag.BoolP(resetOption, "r", resetDefault, "Reset the database")
 	instanceID := flag.StringP(instanceIDOption, "i", instanceIDDefault, "The instance ID to identify this service")
-	logLevel := flag.StringP(logLevelOption, "l", logLevelDefault, "The log filtering level (debug, info, warn, error)")
+	logLevel := flag.StringP(logLevelOption, "l", logLevelDefault, "The log filtering level (debug, info, warning, error)")
 	logDir := flag.String(logDirOption, "", "The logging directory")
 	logColor := flag.Bool(logColorOption, logColorDefault, "Log color toggle")
 	jobs := flag.IntP(jobsOption, "j", jobsDefault, "Number of RPC jobs to run")
@@ -105,7 +105,7 @@ func main() {
 
 	err = log.InitLogger(appName, *instanceID, *logLevel, *logDir, *logColor)
 	if err != nil {
-		fmt.Printf("Invalid log-level: %s. Please choose one of: debug, info, warn, error", *logLevel)
+		fmt.Printf("Invalid log-level: %s. Please choose one of: debug, info, warning, error", *logLevel)
 		os.Exit(1)
 	}
 

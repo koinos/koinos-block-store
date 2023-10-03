@@ -14,7 +14,7 @@ import (
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/koinos/koinos-block-store/internal/bstore"
-	log "github.com/koinos/koinos-log-golang"
+	log "github.com/koinos/koinos-log-golang/v2"
 	koinosmq "github.com/koinos/koinos-mq-golang"
 	"github.com/koinos/koinos-proto-golang/koinos"
 	"github.com/koinos/koinos-proto-golang/koinos/broadcast"
@@ -27,35 +27,39 @@ import (
 )
 
 const (
-	basedirOption    = "basedir"
-	amqpOption       = "amqp"
-	instanceIDOption = "instance-id"
-	logLevelOption   = "log-level"
-	resetOption      = "reset"
-	jobsOption       = "jobs"
-	versionOption    = "version"
+	basedirOption     = "basedir"
+	amqpOption        = "amqp"
+	instanceIDOption  = "instance-id"
+	logLevelOption    = "log-level"
+	logDirOption      = "log-dir"
+	logColorOption    = "log-color"
+	logDatetimeOption = "log-datetime"
+	resetOption       = "reset"
+	jobsOption        = "jobs"
+	versionOption     = "version"
 )
 
 const (
-	basedirDefault    = ".koinos"
-	amqpDefault       = "amqp://guest:guest@localhost:5672/"
-	instanceIDDefault = ""
-	logLevelDefault   = "info"
-	resetDefault      = false
+	basedirDefault     = ".koinos"
+	amqpDefault        = "amqp://guest:guest@localhost:5672/"
+	instanceIDDefault  = ""
+	logLevelDefault    = "info"
+	logColorDefault    = true
+	logDatetimeDefault = true
+	resetDefault       = false
 )
 
 const (
 	blockstoreRPC  = "block_store"
 	blockAccept    = "koinos.block.accept"
 	appName        = "block_store"
-	logDir         = "logs"
 	maxMessageSize = 536870912
 )
 
 // Version display values
 const (
 	DisplayAppName = "Koinos Block Store"
-	Version        = "v1.0.0"
+	Version        = "v1.1.0"
 )
 
 // Gets filled in by the linker
@@ -68,7 +72,10 @@ func main() {
 	amqp := flag.StringP(amqpOption, "a", "", "AMQP server URL")
 	reset := flag.BoolP(resetOption, "r", resetDefault, "Reset the database")
 	instanceID := flag.StringP(instanceIDOption, "i", instanceIDDefault, "The instance ID to identify this service")
-	logLevel := flag.StringP(logLevelOption, "l", logLevelDefault, "The log filtering level (debug, info, warn, error)")
+	logLevel := flag.StringP(logLevelOption, "l", logLevelDefault, "The log filtering level (debug, info, warning, error)")
+	logDir := flag.String(logDirOption, "", "The logging directory")
+	logColor := flag.Bool(logColorOption, logColorDefault, "Log color toggle")
+	logDatetime := flag.Bool(logDatetimeOption, logDatetimeDefault, "Log datetime on console toggle")
 	jobs := flag.IntP(jobsOption, "j", jobsDefault, "Number of RPC jobs to run")
 	version := flag.BoolP(versionOption, "v", false, "Print version and exit")
 
@@ -89,17 +96,20 @@ func main() {
 
 	*amqp = util.GetStringOption(amqpOption, amqpDefault, *amqp, yamlConfig.BlockStore, yamlConfig.Global)
 	*logLevel = util.GetStringOption(logLevelOption, logLevelDefault, *logLevel, yamlConfig.BlockStore, yamlConfig.Global)
+	*logDir = util.GetStringOption(logDirOption, *logDir, *logDir, yamlConfig.BlockStore, yamlConfig.Global)
+	*logColor = util.GetBoolOption(logColorOption, logColorDefault, *logColor, yamlConfig.BlockStore, yamlConfig.Global)
+	*logDatetime = util.GetBoolOption(logDatetimeOption, logDatetimeDefault, *logDatetime, yamlConfig.BlockStore, yamlConfig.Global)
 	*instanceID = util.GetStringOption(instanceIDOption, util.GenerateBase58ID(5), *instanceID, yamlConfig.BlockStore, yamlConfig.Global)
 	*reset = util.GetBoolOption(resetOption, resetDefault, *reset, yamlConfig.BlockStore, yamlConfig.Global)
 	*jobs = util.GetIntOption(jobsOption, jobsDefault, *jobs, yamlConfig.BlockStore, yamlConfig.Global)
 
-	appID := fmt.Sprintf("%s.%s", appName, *instanceID)
+	if len(*logDir) > 0 && !path.IsAbs(*logDir) {
+		*logDir = path.Join(util.GetAppDir(baseDir, appName), *logDir)
+	}
 
-	// Initialize logger
-	logFilename := path.Join(util.GetAppDir(baseDir, appName), logDir, "block_store.log")
-	err = log.InitLogger(*logLevel, false, logFilename, appID)
+	err = log.InitLogger(appName, *instanceID, *logLevel, *logDir, *logColor, *logDatetime)
 	if err != nil {
-		fmt.Printf("Invalid log-level: %s. Please choose one of: debug, info, warn, error", *logLevel)
+		fmt.Printf("Invalid log-level: %s. Please choose one of: debug, info, warning, error", *logLevel)
 		os.Exit(1)
 	}
 

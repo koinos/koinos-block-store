@@ -7,16 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/multiformats/go-multihash"
 
-	log "github.com/koinos/koinos-log-golang"
-	"github.com/koinos/koinos-proto-golang/koinos"
-	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
+	log "github.com/koinos/koinos-log-golang/v2"
+	"github.com/koinos/koinos-proto-golang/v2/koinos"
+	"github.com/koinos/koinos-proto-golang/v2/koinos/rpc/block_store"
 )
 
 const (
@@ -32,7 +31,7 @@ func NewBackend(backendType int) BlockStoreBackend {
 	case MapBackendType:
 		backend = NewMapBackend()
 	case BadgerBackendType:
-		dirname, err := ioutil.TempDir(os.TempDir(), "bstore-test-*")
+		dirname, err := os.MkdirTemp(os.TempDir(), "bstore-test-*")
 		if err != nil {
 			panic("unable to create temp directory")
 		}

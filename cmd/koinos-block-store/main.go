@@ -16,11 +16,11 @@ import (
 	"github.com/koinos/koinos-block-store/internal/bstore"
 	log "github.com/koinos/koinos-log-golang/v2"
 	koinosmq "github.com/koinos/koinos-mq-golang"
-	"github.com/koinos/koinos-proto-golang/koinos"
-	"github.com/koinos/koinos-proto-golang/koinos/broadcast"
-	"github.com/koinos/koinos-proto-golang/koinos/rpc"
-	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
-	util "github.com/koinos/koinos-util-golang"
+	"github.com/koinos/koinos-proto-golang/v2/koinos"
+	"github.com/koinos/koinos-proto-golang/v2/koinos/broadcast"
+	"github.com/koinos/koinos-proto-golang/v2/koinos/rpc"
+	"github.com/koinos/koinos-proto-golang/v2/koinos/rpc/block_store"
+	util "github.com/koinos/koinos-util-golang/v2"
 	"github.com/multiformats/go-multihash"
 	flag "github.com/spf13/pflag"
 	"google.golang.org/protobuf/proto"
@@ -170,7 +170,7 @@ func main() {
 		err := proto.Unmarshal(data, req)
 		if err != nil {
 			log.Warnf("Received malformed request: 0x%v", hex.EncodeToString(data))
-			eResp := rpc.ErrorResponse{Message: err.Error()}
+			eResp := rpc.ErrorStatus{Message: err.Error()}
 			rErr := block_store.BlockStoreResponse_Error{Error: &eResp}
 			resp.Response = &rErr
 		} else {
@@ -182,7 +182,7 @@ func main() {
 		outputBytes, err = proto.Marshal(resp)
 
 		if len(outputBytes) > maxMessageSize {
-			eResp := rpc.ErrorResponse{Message: "Response would exceed maximum MQ message size"}
+			eResp := rpc.ErrorStatus{Message: "Response would exceed maximum MQ message size"}
 			rErr := block_store.BlockStoreResponse_Error{Error: &eResp}
 			resp.Response = &rErr
 			outputBytes, err = proto.Marshal(resp)

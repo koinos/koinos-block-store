@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/koinos/koinos-proto-golang/koinos/protocol"
+	"github.com/koinos/koinos-proto-golang/v2/koinos/protocol"
 	"github.com/multiformats/go-multihash"
 	"google.golang.org/protobuf/proto"
 )
@@ -15,8 +15,9 @@ import (
 // MockBlock is referred to by a number.  For example, we might represent a forked blockchain like this:
 //
 // 101 -> 102 -> 103 -> 104
-//         \
-//          ---> 203 -> 204
+//
+//	\
+//	 ---> 203 -> 204
 //
 // The numbers 101, 102, 103, 104, 203, 204, etc. are used to explain how the blocks relate to each other
 // topologically.
@@ -24,7 +25,6 @@ import (
 // For example, if we're constructing block 203 in some variable mb, we would say mb.Previous = 102.
 // These MockBlocks would be contained in a MockBlockTree, and the number-based Previous is translated to
 // an actual block ID that obeys proper cryptographic constraints by ToBlockTree().
-//
 type MockBlock struct {
 	Num      uint64
 	Previous uint64

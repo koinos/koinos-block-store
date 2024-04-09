@@ -7,10 +7,10 @@ import (
 	"math/bits"
 	"sync"
 
-	log "github.com/koinos/koinos-log-golang"
-	"github.com/koinos/koinos-proto-golang/koinos"
-	"github.com/koinos/koinos-proto-golang/koinos/rpc"
-	"github.com/koinos/koinos-proto-golang/koinos/rpc/block_store"
+	log "github.com/koinos/koinos-log-golang/v2"
+	"github.com/koinos/koinos-proto-golang/v2/koinos"
+	"github.com/koinos/koinos-proto-golang/v2/koinos/rpc"
+	"github.com/koinos/koinos-proto-golang/v2/koinos/rpc/block_store"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -586,7 +586,7 @@ func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest)
 	}
 
 	if err != nil {
-		result := rpc.ErrorResponse{Message: err.Error()}
+		result := rpc.ErrorStatus{Message: err.Error()}
 		respVal := block_store.BlockStoreResponse_Error{Error: &result}
 		response.Response = &respVal
 	}

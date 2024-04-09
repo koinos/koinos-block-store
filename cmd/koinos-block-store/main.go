@@ -59,7 +59,7 @@ const (
 // Version display values
 const (
 	DisplayAppName = "Koinos Block Store"
-	Version        = "v1.1.0"
+	Version        = "v1.0.1"
 )
 
 // Gets filled in by the linker

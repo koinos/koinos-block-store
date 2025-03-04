@@ -556,18 +556,26 @@ func (handler *RequestHandler) Prune(pruneHeight uint64) error {
 		topology.Height--
 		topology.Id = blockRecord.Block.Header.Previous
 
+		// Updating the topology bytes every removed block is not optimal, but unavoidable
+		// The block store is not transactional and relies on the highest block lookup as
+		// the starting point for all blocks. Block records point back to previous blocks
+		// or are addressable by their ID. Without knowing the head block ID, there is no
+		// way of obtaining it. To prevent the block store from ending up in an unrecoverable
+		// state, we update the head block before every delete and only delete the block
+		// if the head block update is successful. In this way, even if the prune fails
+		// the block store will still be in a valid state.
+		topologyBytes, err := proto.Marshal(topology)
+		if err != nil {
+			return err
+		}
+
+		err = handler.Backend.Put([]byte{highestBlockKey}, topologyBytes)
+
 		err = handler.Backend.Delete(blockID)
 		if err != nil {
 			return err
 		}
 	}
-
-	topologyBytes, err := proto.Marshal(topology)
-	if err != nil {
-		return err
-	}
-
-	err = handler.Backend.Put([]byte{highestBlockKey}, topologyBytes)
 
 	return err
 }

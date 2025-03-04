@@ -37,6 +37,7 @@ const (
 	resetOption       = "reset"
 	jobsOption        = "jobs"
 	versionOption     = "version"
+	pruneOption       = "prune"
 )
 
 const (
@@ -47,6 +48,7 @@ const (
 	logColorDefault    = true
 	logDatetimeDefault = true
 	resetDefault       = false
+	pruneDefault       = -1
 )
 
 const (
@@ -78,6 +80,7 @@ func main() {
 	logDatetime := flag.Bool(logDatetimeOption, logDatetimeDefault, "Log datetime on console toggle")
 	jobs := flag.IntP(jobsOption, "j", jobsDefault, "Number of RPC jobs to run")
 	version := flag.BoolP(versionOption, "v", false, "Print version and exit")
+	prune := flag.IntP(pruneOption, "p", pruneDefault, "Prune blocks to height")
 
 	flag.Parse()
 
@@ -102,6 +105,7 @@ func main() {
 	*instanceID = util.GetStringOption(instanceIDOption, util.GenerateBase58ID(5), *instanceID, yamlConfig.BlockStore, yamlConfig.Global)
 	*reset = util.GetBoolOption(resetOption, resetDefault, *reset, yamlConfig.BlockStore, yamlConfig.Global)
 	*jobs = util.GetIntOption(jobsOption, jobsDefault, *jobs, yamlConfig.BlockStore, yamlConfig.Global)
+	*prune = util.GetIntOption(pruneOption, pruneDefault, *prune, yamlConfig.BlockStore, yamlConfig.Global)
 
 	if len(*logDir) > 0 && !path.IsAbs(*logDir) {
 		*logDir = path.Join(util.GetAppDir(baseDir, appName), *logDir)
@@ -152,6 +156,15 @@ func main() {
 	requestHandler := koinosmq.NewRequestHandler(*amqp, uint(*jobs), koinosmq.ExponentialBackoff)
 
 	handler := bstore.RequestHandler{Backend: backend}
+
+	if *prune >= 0 {
+		log.Infof("Pruning database to block height %v", *prune)
+		err := handler.Prune(uint64(*prune))
+		if err != nil {
+			log.Errorf("Could not prune database, %s", err.Error())
+			os.Exit(1)
+		}
+	}
 
 	if _, err = handler.GetHighestBlock(&block_store.GetHighestBlockRequest{}); err != nil {
 		if _, ok := err.(*bstore.UnexpectedHeightError); ok {

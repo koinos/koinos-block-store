@@ -738,3 +738,40 @@ func TestInternalError(t *testing.T) {
 		t.Error("Unexpected error text")
 	}
 }
+
+func TestPrune(t *testing.T) {
+	tree := [][]uint64{
+		{0, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113},
+		{103, 204, 205, 206, 207, 208, 209, 210, 211},
+		{103, 304, 305, 306, 307},
+	}
+
+	b := NewMapBackend()
+	handler := RequestHandler{Backend: b}
+	mbt := NewMockBlockTree(tree)
+	bt := ToBlockTree(mbt)
+	BuildTestTree(t, &handler, bt)
+
+	highestBlock, err := handler.GetHighestBlock(&block_store.GetHighestBlockRequest{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	if highestBlock.Topology.Height != 13 {
+		t.Errorf("Expected highest block to be 13 before prune, was %v", highestBlock.Topology.Height)
+	}
+
+	err = handler.Prune(5)
+	if err != nil {
+		t.Error(err)
+	}
+
+	highestBlock, err = handler.GetHighestBlock(&block_store.GetHighestBlockRequest{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	if highestBlock.Topology.Height != 5 {
+		t.Errorf("Expected highest block to be 5 after prune, was %v", highestBlock.Topology.Height)
+	}
+}

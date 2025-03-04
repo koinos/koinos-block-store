@@ -531,6 +531,47 @@ func (handler *RequestHandler) UpdateHighestBlock(topology *koinos.BlockTopology
 	return handler.Backend.Put([]byte{highestBlockKey}, newValue)
 }
 
+func (handler *RequestHandler) Prune(pruneHeight uint64) error {
+	highestBlock, err := handler.GetHighestBlock(&block_store.GetHighestBlockRequest{})
+	if err != nil {
+		return err
+	}
+
+	topology := highestBlock.Topology
+
+	for topology.Height > pruneHeight {
+		blockID := topology.Id
+
+		blockBytes, err := handler.Backend.Get(blockID)
+		if err != nil {
+			return err
+		}
+
+		blockRecord := &block_store.BlockRecord{}
+		err = proto.Unmarshal(blockBytes, blockRecord)
+		if err != nil {
+			return err
+		}
+
+		topology.Height--
+		topology.Id = blockRecord.Block.Header.Previous
+
+		err = handler.Backend.Delete(blockID)
+		if err != nil {
+			return err
+		}
+	}
+
+	topologyBytes, err := proto.Marshal(topology)
+	if err != nil {
+		return err
+	}
+
+	err = handler.Backend.Put([]byte{highestBlockKey}, topologyBytes)
+
+	return err
+}
+
 // HandleRequest handles and routes blockstore requests
 func (handler *RequestHandler) HandleRequest(req *block_store.BlockStoreRequest) *block_store.BlockStoreResponse {
 	response := block_store.BlockStoreResponse{}

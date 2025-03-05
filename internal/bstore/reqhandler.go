@@ -570,6 +570,9 @@ func (handler *RequestHandler) Prune(pruneHeight uint64) error {
 		}
 
 		err = handler.Backend.Put([]byte{highestBlockKey}, topologyBytes)
+		if err != nil {
+			return err
+		}
 
 		err = handler.Backend.Delete(blockID)
 		if err != nil {
